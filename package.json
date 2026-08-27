@@ -11,16 +11,17 @@
   "sideEffects": [
     "*.css"
   ],
-  "main": "./src/index.js",
-  "module": "./src/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "exports": {
-    ".": "./src/index.js",
-    "./viewer": "./src/viewer.js",
-    "./features": "./src/features/index.js",
-    "./styles.css": "./src/styles.css",
+    ".": "./dist/index.js",
+    "./viewer": "./dist/viewer.js",
+    "./features": "./dist/features/index.js",
+    "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },
   "files": [
+    "dist",
     "src",
     "README.md",
     "LICENSE"
@@ -49,8 +50,9 @@
     "react"
   ],
   "scripts": {
+    "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
-    "prepublishOnly": "node scripts/check.mjs",
+    "prepublishOnly": "npm run build && npm run check",
     "version:patch": "npm version patch --no-git-tag-version",
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version"

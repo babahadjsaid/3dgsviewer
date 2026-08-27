@@ -1,8 +1,10 @@
 // Contract test for the package. Runs as an SSR bundle (see scripts/check.mjs)
 // so it exercises the real component and the real feature wiring, no browser.
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GaussianSplatViewer, createViewer, startViewer } from '../src/index.js';
-import { defaultFeatures, createOrbitCameraPath } from '../src/features/index.js';
+// Imports the BUILT output - the exact files a consumer resolves through the
+// package's "exports" map - so the gate covers the compiled JSX too.
+import { GaussianSplatViewer, createViewer, startViewer } from '../dist/index.js';
+import { defaultFeatures, createOrbitCameraPath } from '../dist/features/index.js';
 
 let failures = 0;
 function check(label, actual, expected) {

@@ -57,6 +57,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Build
+        run: npm run build
+
       - name: Check
         run: npm run check
 
@@ -93,6 +96,15 @@ jobs:
             exit 1
           fi
 
+      # Publish first. If this fails, nothing has been written back to the
+      # repo yet, so the run is safe to retry - no stranded tag pointing at a
+      # version that never reached npm.
+      #
+      # No NODE_AUTH_TOKEN: the OIDC token from `id-token: write` is exchanged
+      # for a short-lived publish token, and provenance is attached automatically.
+      - name: Publish to npm
+        run: npm publish --access public
+
       - name: Commit and tag
         run: |
           git config user.name  "github-actions[bot]"
@@ -101,11 +113,6 @@ jobs:
           git commit -m "chore(release): ${{ steps.version.outputs.tag }} [skip ci]"
           git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
           git push origin HEAD:master --follow-tags
-
-      # No NODE_AUTH_TOKEN: the OIDC token from `id-token: write` is exchanged
-      # for a short-lived publish token, and provenance is attached automatically.
-      - name: Publish to npm
-        run: npm publish --access public
 
       - name: GitHub release
         env:

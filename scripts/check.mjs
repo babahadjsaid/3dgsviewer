@@ -2,11 +2,14 @@
 /**
  * Pre-publish gate. Two passes, both must succeed:
  *
- *   1. Browser bundle - proves src/ bundles for real: PlayCanvas resolves, the
- *      JSX compiles, the CSS is loadable, no bundler-specific syntax sneaks in
- *      (this is what would have caught `import.meta.env`).
+ *   1. Browser bundle - proves the package bundles for real: PlayCanvas
+ *      resolves, the JSX compiles, the CSS is loadable, no bundler-specific
+ *      syntax sneaks in (this is what would have caught `import.meta.env`).
  *   2. Contract test  - SSR-renders the component in both `fullScreen` modes
  *      and asserts what each one does and does not put on the page.
+ *
+ * Both run against dist/, so what is verified is what is published. Run
+ * `npm run build` first (prepublishOnly and CI both do).
  *
  * Nothing here ships: `files` in package.json is limited to src/, README and
  * LICENSE.
@@ -14,13 +17,19 @@
 
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { rm, mkdir, readdir } from 'node:fs/promises';
+import { rm, mkdir, readdir, access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 
 const OUT = resolve('.check-out');
 
 async function run() {
+  try {
+    await access('dist/index.js');
+  } catch {
+    throw new Error('dist/ is missing - run `npm run build` first');
+  }
+
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
 
@@ -31,8 +40,10 @@ async function run() {
     build: {
       outDir: `${OUT}/browser`,
       emptyOutDir: true,
-      lib: { entry: './src/index.js', formats: ['es'], fileName: 'bundle' },
+      lib: { entry: './dist/index.js', formats: ['es'], fileName: 'bundle' },
       rollupOptions: { external: ['react', 'react-dom', 'react/jsx-runtime'] },
+      // dist/ already externalises playcanvas; keep it bundled here so the
+      // browser pass still proves it resolves and links.
     },
   });
 

@@ -112,12 +112,18 @@ import { createOrbitCameraPath } from '@baba_hadjsaid/3dgsviewer/features';
 createViewer({ root, src, features: [createOrbitCameraPath({ durationMs: 20000 }), myEffect()] });
 ```
 
-## Note on the published form
+## Published form
 
-`src/` ships as untranspiled ESM. The `.js` core works in any bundler as-is;
-`GaussianSplatViewer.jsx` is raw JSX, so a consumer either transpiles this
-package or imports `@baba_hadjsaid/3dgsviewer/viewer` and writes their own wrapper. Adding a
-build step (`vite build --lib` or esbuild) would remove that caveat.
+`dist/` ships precompiled ESM with sourcemaps: the JSX is already transpiled,
+the module tree is preserved (so subpath imports stay real modules and the
+package tree-shakes), and `react`, `react-dom` and `playcanvas` stay external.
+No consumer needs to transpile `node_modules`, whatever bundler they use.
+
+`src/` ships too, so the sourcemaps resolve to readable code.
+
+Build it locally with `npm run build`; `npm run check` then verifies the built
+output, and `prepublishOnly` runs both so a hand-typed `npm publish` cannot skip
+them.
 
 ## Releasing
 
@@ -143,4 +149,4 @@ Publishing uses **npm trusted publishing (OIDC)**: no npm token is stored in
 this repo. GitHub mints a short-lived credential per run, which also attaches
 signed provenance to the npm page.
 
-Locally, `npm run check` runs the exact gate CI runs.
+Locally, `npm run build && npm run check` runs the exact gate CI runs.
