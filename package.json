@@ -1,6 +1,6 @@
 {
   "name": "@baba_hadjsaid/3dgsviewer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Embeddable 3D Gaussian Splatting viewer (PlayCanvas) with a React component, a framework-free core and a feature plug-in API",
   "author": {
     "name": "Baba HADJ SAID",
