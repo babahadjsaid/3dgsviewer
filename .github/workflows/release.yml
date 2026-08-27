@@ -1,0 +1,122 @@
+name: Release
+
+# Every push to master that touches the library bumps the version and
+# publishes it. Control the bump from the commit message:
+#
+#   (default)        -> patch   1.0.0 -> 1.0.1
+#   [minor]          -> minor   1.0.0 -> 1.1.0
+#   [major]          -> major   1.0.0 -> 2.0.0
+#   [skip release]   -> no publish at all
+#
+# The bump commit is tagged [skip ci] so it cannot retrigger this workflow.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to apply
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the version bump commit + tag
+      id-token: write   # mint the OIDC token npm trades for a publish token
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
+      - name: Use an npm that speaks OIDC
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - run: npm ci
+
+      - name: Check
+        run: npm run check
+
+      - name: Decide the bump
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            level="${{ inputs.bump }}"
+          else
+            msg=$(git log -1 --pretty=%B)
+            case "$msg" in
+              *"[major]"*) level=major ;;
+              *"[minor]"*) level=minor ;;
+              *)           level=patch ;;
+            esac
+          fi
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "bumping $level"
+
+      - name: Bump version
+        id: version
+        run: |
+          version=$(npm version "${{ steps.bump.outputs.level }}" --no-git-tag-version)
+          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=$version" >> "$GITHUB_OUTPUT"
+          echo "new version: $version"
+
+      # A re-run must not die trying to republish an existing version.
+      - name: Verify the version is new
+        run: |
+          name=$(node -p "require('./package.json').name")
+          if npm view "$name@${{ steps.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "::error::${{ steps.version.outputs.version }} is already on npm"
+            exit 1
+          fi
+
+      - name: Commit and tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): ${{ steps.version.outputs.tag }} [skip ci]"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "${{ steps.version.outputs.tag }}"
+          git push origin HEAD:master --follow-tags
+
+      # No NODE_AUTH_TOKEN: the OIDC token from `id-token: write` is exchanged
+      # for a short-lived publish token, and provenance is attached automatically.
+      - name: Publish to npm
+        run: npm publish --access public
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          {
+            echo "\`npm install $name@$VERSION\`"
+            echo
+            git log -1 --skip=1 --pretty=%s
+          } > release-notes.md
+          gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --latest

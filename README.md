@@ -1,4 +1,6 @@
-# 3dgsviewer
+# @baba_hadjsaid/3dgsviewer
+
+[![npm](https://img.shields.io/npm/v/@baba_hadjsaid/3dgsviewer)](https://www.npmjs.com/package/@baba_hadjsaid/3dgsviewer)
 
 Embeddable 3D Gaussian Splatting viewer. PlayCanvas under the hood, a React
 component on top, and a feature plug-in API for everything optional.
@@ -9,7 +11,7 @@ any URL — `http(s):`, `blob:` or a custom protocol.
 ## Install
 
 ```bash
-npm install 3dgsviewer playcanvas
+npm install @baba_hadjsaid/3dgsviewer playcanvas
 ```
 
 `playcanvas` is a peer dependency — the viewer must share the host app's copy,
@@ -19,8 +21,8 @@ needed only for the `<GaussianSplatViewer>` component.
 ## Use
 
 ```jsx
-import { GaussianSplatViewer } from '3dgsviewer';
-import '3dgsviewer/styles.css';
+import { GaussianSplatViewer } from '@baba_hadjsaid/3dgsviewer';
+import '@baba_hadjsaid/3dgsviewer/styles.css';
 
 <GaussianSplatViewer src="/scenes/room.ply" />
 ```
@@ -29,7 +31,7 @@ Without React, drive the core directly. It needs a root element containing a
 `[data-viewer-element="canvas"]` canvas (it appends one if there isn't):
 
 ```js
-import { createViewer } from '3dgsviewer/viewer';
+import { createViewer } from '@baba_hadjsaid/3dgsviewer/viewer';
 
 const viewer = createViewer({ root: document.querySelector('#stage'), src: url });
 await viewer.ready;
@@ -104,8 +106,8 @@ feature — so the orbit path, the bbox/axes overlays and the reveal intro can a
 be swapped for your own:
 
 ```js
-import { createViewer } from '3dgsviewer/viewer';
-import { createOrbitCameraPath } from '3dgsviewer/features';
+import { createViewer } from '@baba_hadjsaid/3dgsviewer/viewer';
+import { createOrbitCameraPath } from '@baba_hadjsaid/3dgsviewer/features';
 
 createViewer({ root, src, features: [createOrbitCameraPath({ durationMs: 20000 }), myEffect()] });
 ```
@@ -114,5 +116,31 @@ createViewer({ root, src, features: [createOrbitCameraPath({ durationMs: 20000 }
 
 `src/` ships as untranspiled ESM. The `.js` core works in any bundler as-is;
 `GaussianSplatViewer.jsx` is raw JSX, so a consumer either transpiles this
-package or imports `3dgsviewer/viewer` and writes their own wrapper. Adding a
+package or imports `@baba_hadjsaid/3dgsviewer/viewer` and writes their own wrapper. Adding a
 build step (`vite build --lib` or esbuild) would remove that caveat.
+
+## Releasing
+
+Push to `master` and CI does the rest: it bundles the package, runs the
+contract test, bumps the version, tags it, publishes to npm and cuts a GitHub
+release. The commit message picks the bump level.
+
+| Commit message contains | Result |
+|---|---|
+| *(nothing special)* | patch — `1.0.0` → `1.0.1` |
+| `[minor]` | minor — `1.0.0` → `1.1.0` |
+| `[major]` | major — `1.0.0` → `2.0.0` |
+| `[skip release]` | no publish |
+
+The bump commit is written back as `chore(release): v1.0.1 [skip ci]`, so it
+cannot retrigger the workflow. Only changes under `src/**` or to `package.json`
+start a release — README and workflow edits alone do not.
+
+You can also trigger it by hand from the Actions tab (*Release* → *Run
+workflow*) and choose the level there.
+
+Publishing uses **npm trusted publishing (OIDC)**: no npm token is stored in
+this repo. GitHub mints a short-lived credential per run, which also attaches
+signed provenance to the npm page.
+
+Locally, `npm run check` runs the exact gate CI runs.

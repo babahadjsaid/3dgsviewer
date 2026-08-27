@@ -1,2 +1,8 @@
+node_modules/
+.check-out/
+*.tgz
 .env
+.env.*
 docs/
+*.log
+.DS_Store

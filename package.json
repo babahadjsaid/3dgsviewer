@@ -22,7 +22,8 @@
   },
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "peerDependencies": {
     "playcanvas": ">=2.13.0",
@@ -46,5 +47,27 @@
     "playcanvas",
     "viewer",
     "react"
-  ]
+  ],
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "prepublishOnly": "node scripts/check.mjs",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "playcanvas": "2.13.5",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "vite": "6.0.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babahadjsaid/3dgsviewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/babahadjsaid/3dgsviewer/issues"
+  },
+  "homepage": "https://github.com/babahadjsaid/3dgsviewer#readme"
 }
