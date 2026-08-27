@@ -1,0 +1,50 @@
+{
+  "name": "@baba_hadjsaid/3dgsviewer",
+  "version": "1.0.0",
+  "description": "Embeddable 3D Gaussian Splatting viewer (PlayCanvas) with a React component, a framework-free core and a feature plug-in API",
+  "author": {
+    "name": "Baba HADJ SAID",
+    "email": "baba066h.s@gmail.com"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./viewer": "./src/viewer.js",
+    "./features": "./src/features/index.js",
+    "./styles.css": "./src/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "playcanvas": ">=2.13.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "gaussian-splatting",
+    "3dgs",
+    "splat",
+    "ply",
+    "sog",
+    "playcanvas",
+    "viewer",
+    "react"
+  ]
+}
