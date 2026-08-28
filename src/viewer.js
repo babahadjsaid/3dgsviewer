@@ -211,10 +211,7 @@ function scheduleFrame(callback) {
 						[d[1], d[5], d[9]],
 						[d[2], d[6], d[10]],
 					];
-					console.log("pose", {
-						position: [Number(pos.x.toFixed(6)), Number(pos.y.toFixed(6)), Number(pos.z.toFixed(6))],
-						orientation,
-					});
+					
 					lastPoseLogAt = now;
 				}
 			}
@@ -1519,6 +1516,7 @@ function scheduleFrame(callback) {
 					revealEffect: runtimeOptions.revealEffect,
 					revealDurationMs: runtimeOptions.revealDurationMs,
 					revealEpsilon: runtimeOptions.revealEpsilon,
+					revealPointSize: runtimeOptions.revealPointSize,
 					revealExponentMin: runtimeOptions.revealExponentMin,
 					revealExponentMax: runtimeOptions.revealExponentMax,
 				});

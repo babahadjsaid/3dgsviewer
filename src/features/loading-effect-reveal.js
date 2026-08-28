@@ -12,7 +12,8 @@ import { revealGlsl, revealWgsl, revealModifyGlsl, revealModifyWgsl } from './re
 
 const DEFAULTS = {
 	durationMs: 5000,       // stage 1; stage 2 is half of this, total = x1.5
-	epsilon: 0.12,          // point size as a fraction of the trained gaussian
+	epsilon: 0.12,          // stage-1 dot size as a fraction of the splat's own size
+	pointSize: 0,           // > 0 forces one world-space dot size for every splat
 	exponentMin: 1.5,
 	exponentMax: 4.0,
 	stage1Fraction: 2 / 3,  // split point of the 0..1 timeline
@@ -31,6 +32,7 @@ export function createRevealLoadingEffect(options = {}) {
 	const opts = { ...DEFAULTS, ...options };
 	const durationMs = Math.max(200, Number.isFinite(opts.durationMs) ? opts.durationMs : DEFAULTS.durationMs);
 	const epsilon = Math.min(0.99, Math.max(0, Number.isFinite(opts.epsilon) ? opts.epsilon : DEFAULTS.epsilon));
+	const pointSize = Math.max(0, Number.isFinite(opts.pointSize) ? opts.pointSize : DEFAULTS.pointSize);
 	const exponentMin = Math.max(1.001, Number.isFinite(opts.exponentMin) ? opts.exponentMin : DEFAULTS.exponentMin);
 	const exponentMax = Math.max(exponentMin, Number.isFinite(opts.exponentMax) ? opts.exponentMax : DEFAULTS.exponentMax);
 	const stage1Fraction = Math.min(0.95, Math.max(0.05, opts.stage1Fraction ?? DEFAULTS.stage1Fraction));
@@ -95,6 +97,7 @@ export function createRevealLoadingEffect(options = {}) {
 			mat.setParameter('splatRevealInner', inner);
 			mat.setParameter('splatRevealRadius', radius);
 			mat.setParameter('splatRevealEpsilon', epsilon);
+			mat.setParameter('splatRevealPointSize', pointSize);
 			mat.setParameter('splatRevealExponentMin', exponentMin);
 			mat.setParameter('splatRevealExponentMax', exponentMax);
 			mat.update();

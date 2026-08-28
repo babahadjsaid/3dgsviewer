@@ -29,6 +29,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   revealEffect,
   revealDurationMs,
   revealEpsilon,
+  revealPointSize,
   revealExponentMin,
   revealExponentMax,
   features,
@@ -65,6 +66,8 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       revealEffect,
       revealDurationMs,
       revealEpsilon,
+      revealPointSize,
+  revealPointSize,
       revealExponentMin,
       revealExponentMax,
       // Feature plug-ins (see src/features/feature-api.js). Pass stable
@@ -85,7 +88,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
     };
   }, [
     src, format, initialCameraPose, imuWebSocketUrl, fullScreen,
-    revealEffect, revealDurationMs, revealEpsilon, revealExponentMin, revealExponentMax,
+    revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
     features, cameraPath, overlays, loadingEffect,
   ]);
 

@@ -24,6 +24,7 @@ uniform float splatRevealSplit;
 uniform float splatRevealInner;
 uniform float splatRevealRadius;
 uniform float splatRevealEpsilon;
+uniform float splatRevealPointSize;
 uniform float splatRevealExponentMin;
 uniform float splatRevealExponentMax;
 void revealJacobi(inout mat3 a, inout mat3 eigenvectors, int p, int q) {
@@ -59,9 +60,18 @@ void modifyCovariance(vec3 originalCenter, vec3 modifiedCenter, inout vec3 covA,
 			covB = vec3(0.0);
 			return;
 		}
-		float s2 = splatRevealEpsilon * splatRevealEpsilon;
-		covA *= s2;
-		covB *= s2;
+		// Stage 1 is a *point cloud*: every splat becomes an isotropic dot. Scaling
+	// the trained shape instead (scale *= epsilon) keeps each splat's anisotropy,
+	// so a flat or needle-like gaussian just becomes a smaller flat or needle-like
+	// gaussian - visibly not points. This mirrors the engine's gsplatMakeSpherical(),
+	// inlined so it also works on engines that predate that helper.
+	// splatRevealPointSize > 0 forces one world-space size for every splat;
+	// otherwise each dot is sized from its own splat, which keeps some depth cue.
+		// covA = (xx, xy, xz), covB = (yy, yz, zz); isotropic means diag(r*r).
+		float meanVar = max((covA.x + covB.x + covB.z) / 3.0, 1e-16);
+		float r = splatRevealPointSize > 0.0 ? splatRevealPointSize : splatRevealEpsilon * sqrt(meanVar);
+		covA = vec3(r * r, 0.0, 0.0);
+		covB = vec3(r * r, 0.0, r * r);
 		return;
 	}
 
@@ -105,6 +115,7 @@ uniform splatRevealSplit: f32;
 uniform splatRevealInner: f32;
 uniform splatRevealRadius: f32;
 uniform splatRevealEpsilon: f32;
+uniform splatRevealPointSize: f32;
 uniform splatRevealExponentMin: f32;
 uniform splatRevealExponentMax: f32;
 fn revealJacobi(a_ptr: ptr<function, mat3x3f>, eigenvectors_ptr: ptr<function, mat3x3f>, p: u32, q: u32) {
@@ -141,9 +152,19 @@ fn modifyCovariance(originalCenter: vec3f, modifiedCenter: vec3f, covA: ptr<func
 			*covB = vec3f(0.0);
 			return;
 		}
-		let s2 = uniform.splatRevealEpsilon * uniform.splatRevealEpsilon;
-		*covA = *covA * s2;
-		*covB = *covB * s2;
+		// Stage 1 is a *point cloud*: every splat becomes an isotropic dot. Scaling
+	// the trained shape instead (scale *= epsilon) keeps each splat's anisotropy,
+	// so a flat or needle-like gaussian just becomes a smaller flat or needle-like
+	// gaussian - visibly not points. This mirrors the engine's gsplatMakeSpherical(),
+	// inlined so it also works on engines that predate that helper.
+	// splatRevealPointSize > 0 forces one world-space size for every splat;
+	// otherwise each dot is sized from its own splat, which keeps some depth cue.
+		let a = *covA;
+		let b = *covB;
+		let meanVar = max((a.x + b.x + b.z) / 3.0, 1e-16);
+		let r = select(uniform.splatRevealEpsilon * sqrt(meanVar), uniform.splatRevealPointSize, uniform.splatRevealPointSize > 0.0);
+		*covA = vec3f(r * r, 0.0, 0.0);
+		*covB = vec3f(r * r, 0.0, r * r);
 		return;
 	}
 
@@ -205,6 +226,7 @@ uniform float splatRevealSplit;
 uniform float splatRevealInner;
 uniform float splatRevealRadius;
 uniform float splatRevealEpsilon;
+uniform float splatRevealPointSize;
 uniform float splatRevealExponentMin;
 uniform float splatRevealExponentMax;
 vec3 revealCenterModify = vec3(0.0);
@@ -224,7 +246,15 @@ void modifySplatRotationScale(vec3 originalCenter, vec3 modifiedCenter, inout ve
 			scale = vec3(0.0);
 			return;
 		}
-		scale *= splatRevealEpsilon;
+		// Stage 1 is a *point cloud*: every splat becomes an isotropic dot. Scaling
+	// the trained shape instead (scale *= epsilon) keeps each splat's anisotropy,
+	// so a flat or needle-like gaussian just becomes a smaller flat or needle-like
+	// gaussian - visibly not points. This mirrors the engine's gsplatMakeSpherical(),
+	// inlined so it also works on engines that predate that helper.
+	// splatRevealPointSize > 0 forces one world-space size for every splat;
+	// otherwise each dot is sized from its own splat, which keeps some depth cue.
+		float meanSize = sqrt(max(dot(scale, scale) / 3.0, 1e-16));
+		scale = vec3(splatRevealPointSize > 0.0 ? splatRevealPointSize : splatRevealEpsilon * meanSize);
 		return;
 	}
 
@@ -248,6 +278,7 @@ uniform splatRevealSplit: f32;
 uniform splatRevealInner: f32;
 uniform splatRevealRadius: f32;
 uniform splatRevealEpsilon: f32;
+uniform splatRevealPointSize: f32;
 uniform splatRevealExponentMin: f32;
 uniform splatRevealExponentMax: f32;
 var<private> revealCenterModify: vec3f = vec3f(0.0);
@@ -266,7 +297,16 @@ fn modifySplatRotationScale(originalCenter: vec3f, modifiedCenter: vec3f, rotati
 			*scale = vec3f(0.0);
 			return;
 		}
-		*scale = *scale * uniform.splatRevealEpsilon;
+		// Stage 1 is a *point cloud*: every splat becomes an isotropic dot. Scaling
+	// the trained shape instead (scale *= epsilon) keeps each splat's anisotropy,
+	// so a flat or needle-like gaussian just becomes a smaller flat or needle-like
+	// gaussian - visibly not points. This mirrors the engine's gsplatMakeSpherical(),
+	// inlined so it also works on engines that predate that helper.
+	// splatRevealPointSize > 0 forces one world-space size for every splat;
+	// otherwise each dot is sized from its own splat, which keeps some depth cue.
+		let s0 = *scale;
+		let meanSize = sqrt(max(dot(s0, s0) / 3.0, 1e-16));
+		*scale = vec3f(select(uniform.splatRevealEpsilon * meanSize, uniform.splatRevealPointSize, uniform.splatRevealPointSize > 0.0));
 		return;
 	}
 

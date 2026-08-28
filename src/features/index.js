@@ -24,7 +24,7 @@ import { createRevealLoadingEffect } from './loading-effect-reveal.js';
  *   overlays?: Array<import('./feature-api.js').Feature | import('./feature-api.js').FeatureFactory>,
  *   loadingEffect?: (import('./feature-api.js').Feature | import('./feature-api.js').FeatureFactory | false),
  *   revealEffect?: boolean,
- *   revealDurationMs?: number, revealEpsilon?: number,
+ *   revealDurationMs?: number, revealEpsilon?: number, revealPointSize?: number,
  *   revealExponentMin?: number, revealExponentMax?: number,
  * }} [options]
  */
@@ -49,6 +49,7 @@ export function defaultFeatures(options = {}) {
 		list.push(createRevealLoadingEffect({
 			durationMs: options.revealDurationMs,
 			epsilon: options.revealEpsilon,
+			pointSize: options.revealPointSize,
 			exponentMin: options.revealExponentMin,
 			exponentMax: options.revealExponentMax,
 		}));
