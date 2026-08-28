@@ -84,6 +84,31 @@ check('explicit cameraPath overrides minimal mode',
     resourceHandlers: [],
   });
 
+  // --- the reveal effect must target a hook this engine actually has --------
+  // PlayCanvas renamed the gsplat customisation chunk in 2.14:
+  // `gsplatCustomizeVS` -> `gsplatModifyVS`. Setting a chunk the engine does
+  // not include is a silent no-op, which is exactly how the reveal effect died
+  // on modern engines without a single warning. These chunks are registered per
+  // material rather than in the global ShaderChunks registry, so the engine
+  // bundle is the thing to ask.
+  {
+    const engine = readFileSync(
+      join(process.cwd(), 'node_modules', 'playcanvas', 'build', 'playcanvas.mjs'), 'utf8');
+    const effect = readFileSync(
+      join(process.cwd(), 'dist', 'features', 'loading-effect-reveal.js'), 'utf8');
+
+    const hooks = ['gsplatModifyVS', 'gsplatCustomizeVS'];
+    const inEngine = hooks.filter((h) => engine.includes(h));
+    // Match the actual `.set('<hook>'` call - a bare name match would also hit
+    // the comments that mention both hooks, and pass while the code is broken.
+    const inEffect = hooks.filter((h) => new RegExp(`set\\(\\s*["']${h}["']`).test(effect));
+    const shared = inEngine.filter((h) => inEffect.includes(h));
+
+    console.log(`     engine offers [${inEngine.join(', ') || 'none'}]; effect sets [${inEffect.join(', ')}]`);
+    check('the reveal effect sets a hook the installed engine includes',
+      shared.length > 0, true);
+  }
+
   const forced = new pc.Entity('forced', app);
   forced.addComponent('gsplat', { unified: false });
   check('gsplat honours unified:false (reveal effect needs a material)',

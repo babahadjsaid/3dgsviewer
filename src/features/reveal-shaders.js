@@ -179,3 +179,107 @@ fn modifyCovariance(originalCenter: vec3f, modifiedCenter: vec3f, covA: ptr<func
 }
 fn modifyColor(center: vec3f, color: ptr<function, vec4f>) {}
 `;
+
+// ---------------------------------------------------------------------------
+// Same effect against the modern hook.
+//
+// PlayCanvas 2.14 replaced `gsplatCustomizeVS` with `gsplatModifyVS`, and the
+// entry points changed shape:
+//
+//   2.13.x  modifyCenter(inout vec3)
+//           modifyCovariance(vec3, vec3, inout vec3 covA, inout vec3 covB)
+//   2.14+   modifySplatCenter(inout vec3)
+//           modifySplatRotationScale(vec3, vec3, inout vec4 rotation, inout vec3 scale)
+//
+// Setting a chunk the engine does not include is a no-op, so the loading effect
+// sets both and whichever one the running engine compiles wins.
+//
+// The new hook is the simpler of the two: it hands over per-axis `scale`
+// directly, so the Jacobi eigendecomposition the covariance version needed to
+// recover the principal axes disappears. Covariance is scale squared, which is
+// why the old code multiplied by epsilon^2 where this multiplies by epsilon.
+
+export const revealModifyGlsl = `
+uniform float splatRevealTime;
+uniform float splatRevealSplit;
+uniform float splatRevealInner;
+uniform float splatRevealRadius;
+uniform float splatRevealEpsilon;
+uniform float splatRevealExponentMin;
+uniform float splatRevealExponentMax;
+vec3 revealCenterModify = vec3(0.0);
+void modifySplatCenter(inout vec3 center) { revealCenterModify = center; }
+void modifySplatRotationScale(vec3 originalCenter, vec3 modifiedCenter, inout vec4 rotation, inout vec3 scale) {
+	if (splatRevealTime >= 1.0) return;
+
+	float span = max(splatRevealRadius - splatRevealInner, 1e-4);
+	float band = 0.12 * span;
+	float d = length(revealCenterModify);
+
+	// Stage 1: an expanding sphere from the origin reveals each splat as a point.
+	if (splatRevealTime < splatRevealSplit) {
+		float w1 = splatRevealTime / max(splatRevealSplit, 1e-4);
+		float front1 = splatRevealInner + w1 * (span + band);
+		if (d > front1) {
+			scale = vec3(0.0);
+			return;
+		}
+		scale *= splatRevealEpsilon;
+		return;
+	}
+
+	// Stage 2: a second, faster sphere grows each point back to its trained
+	// shape, thinner axes catching up later than fat ones.
+	float w2 = (splatRevealTime - splatRevealSplit) / max(1.0 - splatRevealSplit, 1e-4);
+	float front2 = splatRevealInner + w2 * (span + band);
+	float local = clamp((front2 - d) / (2.0 * band) + 0.5, 0.0, 1.0);
+
+	float maxScale = max(max(scale.x, scale.y), max(scale.z, 1e-8));
+	vec3 ratios = scale / maxScale;
+	vec3 exponents = mix(vec3(splatRevealExponentMin), vec3(splatRevealExponentMax), ratios);
+	scale *= vec3(splatRevealEpsilon) + (1.0 - splatRevealEpsilon) * pow(vec3(local), exponents);
+}
+void modifySplatColor(vec3 center, inout vec4 color) {}
+`;
+
+export const revealModifyWgsl = `
+uniform splatRevealTime: f32;
+uniform splatRevealSplit: f32;
+uniform splatRevealInner: f32;
+uniform splatRevealRadius: f32;
+uniform splatRevealEpsilon: f32;
+uniform splatRevealExponentMin: f32;
+uniform splatRevealExponentMax: f32;
+var<private> revealCenterModify: vec3f = vec3f(0.0);
+fn modifySplatCenter(center: ptr<function, vec3f>) { revealCenterModify = *center; }
+fn modifySplatRotationScale(originalCenter: vec3f, modifiedCenter: vec3f, rotation: ptr<function, vec4f>, scale: ptr<function, vec3f>) {
+	if (uniform.splatRevealTime >= 1.0) { return; }
+
+	let span = max(uniform.splatRevealRadius - uniform.splatRevealInner, 1e-4);
+	let band = 0.12 * span;
+	let d = length(revealCenterModify);
+
+	if (uniform.splatRevealTime < uniform.splatRevealSplit) {
+		let w1 = uniform.splatRevealTime / max(uniform.splatRevealSplit, 1e-4);
+		let front1 = uniform.splatRevealInner + w1 * (span + band);
+		if (d > front1) {
+			*scale = vec3f(0.0);
+			return;
+		}
+		*scale = *scale * uniform.splatRevealEpsilon;
+		return;
+	}
+
+	let w2 = (uniform.splatRevealTime - uniform.splatRevealSplit) / max(1.0 - uniform.splatRevealSplit, 1e-4);
+	let front2 = uniform.splatRevealInner + w2 * (span + band);
+	let local = clamp((front2 - d) / (2.0 * band) + 0.5, 0.0, 1.0);
+
+	let s = *scale;
+	let maxScale = max(max(s.x, s.y), max(s.z, 1e-8));
+	let ratios = s / maxScale;
+	let exponents = mix(vec3f(uniform.splatRevealExponentMin), vec3f(uniform.splatRevealExponentMax), ratios);
+	let factors = vec3f(uniform.splatRevealEpsilon) + (1.0 - uniform.splatRevealEpsilon) * pow(vec3f(local), exponents);
+	*scale = s * factors;
+}
+fn modifySplatColor(center: vec3f, color: ptr<function, vec4f>) {}
+`;

@@ -8,7 +8,7 @@
 // userInteraction, teardown }`. To use a different intro (a fade, a
 // dissolve, nothing at all), pass your own object as a `features` entry.
 
-import { revealGlsl, revealWgsl } from './reveal-shaders.js';
+import { revealGlsl, revealWgsl, revealModifyGlsl, revealModifyWgsl } from './reveal-shaders.js';
 
 const DEFAULTS = {
 	durationMs: 5000,       // stage 1; stage 2 is half of this, total = x1.5
@@ -17,8 +17,10 @@ const DEFAULTS = {
 	exponentMax: 4.0,
 	stage1Fraction: 2 / 3,  // split point of the 0..1 timeline
 	startCameraPath: true,  // also run the fitted orbit during the reveal
-	glsl: revealGlsl,
+	glsl: revealGlsl,             // gsplatCustomizeVS  - PlayCanvas 2.13.x
 	wgsl: revealWgsl,
+	modifyGlsl: revealModifyGlsl, // gsplatModifyVS     - PlayCanvas 2.14+
+	modifyWgsl: revealModifyWgsl,
 };
 
 /**
@@ -71,10 +73,17 @@ export function createRevealLoadingEffect(options = {}) {
 		}
 
 		try {
+			// PlayCanvas renamed this hook in 2.14: `gsplatCustomizeVS` became
+			// `gsplatModifyVS`, with different entry points. Setting a chunk the
+			// running engine does not include is a no-op, so set both and let
+			// whichever one it compiles take effect. Without this the effect
+			// silently does nothing on any engine newer than 2.13.x.
 			if (scene.graphicsDevice?.isWebGPU) {
 				mat.shaderChunks.wgsl.set('gsplatCustomizeVS', opts.wgsl);
+				mat.shaderChunks.wgsl.set('gsplatModifyVS', opts.modifyWgsl);
 			} else {
 				mat.shaderChunks.glsl.set('gsplatCustomizeVS', opts.glsl);
+				mat.shaderChunks.glsl.set('gsplatModifyVS', opts.modifyGlsl);
 			}
 			const origin = scene.getOriginDistances();
 			const inner = Number.isFinite(origin?.minDist) ? Math.max(0, origin.minDist) : 0;
