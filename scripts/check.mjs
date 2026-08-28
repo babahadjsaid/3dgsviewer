@@ -56,6 +56,7 @@ async function run() {
       outDir: `${OUT}/test`,
       emptyOutDir: true,
       minify: false,
+      target: 'esnext', // the test uses top-level await
     },
   });
 

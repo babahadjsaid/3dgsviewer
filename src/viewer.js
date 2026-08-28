@@ -1034,7 +1034,14 @@ function scheduleFrame(callback) {
 
 					nextAsset.once("load", () => {
 						const nextEntity = new pc.Entity("Splat");
-						nextEntity.addComponent("gsplat", { asset: nextAsset });
+						// `unified: false` is load-bearing, not a preference. Under the
+						// unified renderer PlayCanvas returns null from
+						// `component.material`, so there is no per-instance material for
+						// features to touch and the reveal effect silently does nothing.
+						// The default flipped to unified in PlayCanvas 2.14+, which is
+						// why this used to work without saying so. `unified` is first in
+						// the component schema, so it is applied before `asset`.
+						nextEntity.addComponent("gsplat", { unified: false, asset: nextAsset });
 						app.root.addChild(nextEntity);
 
 						if (previousEntity) {
@@ -1049,10 +1056,6 @@ function scheduleFrame(callback) {
 
 						splatEntity = nextEntity;
 						splatAsset = nextAsset;
-
-						// The viewer always uses the per-instance gsplat material so
-						// features (e.g. the loading effect) can override shader
-						// chunks regardless of scene format.
 
 						setSpinnerVisible(false);
 						setProgress(100);

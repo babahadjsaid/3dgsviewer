@@ -59,7 +59,13 @@ export function createRevealLoadingEffect(options = {}) {
 
 		if (!mat || !mat.shaderChunks) {
 			// Unified renderer / no per-instance material: skip the shader effect
-			// but still run the accompanying motion.
+			// but still run the accompanying motion. The viewer asks for
+			// `unified: false` precisely so this branch is not taken, so say
+			// something - a silent no-op here is very hard to diagnose.
+			console.warn(
+				'[3dgsviewer] no per-instance gsplat material; skipping the reveal effect. '
+				+ 'This usually means the gsplat component fell back to the unified renderer.',
+			);
 			runOrbit();
 			return;
 		}

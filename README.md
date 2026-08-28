@@ -18,6 +18,11 @@ npm install @baba_hadjsaid/3dgsviewer playcanvas
 or you end up with two WebGL contexts. `react` / `react-dom` are optional peers,
 needed only for the `<GaussianSplatViewer>` component.
 
+The viewer creates its gsplat component with `unified: false`. That is required,
+not stylistic: under PlayCanvas's unified renderer `component.material` is
+`null`, so there is no per-instance material for features to touch and the
+reveal intro silently does nothing.
+
 ## Use
 
 ```jsx

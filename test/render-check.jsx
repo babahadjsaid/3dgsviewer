@@ -56,5 +56,43 @@ check('minimal mode has no orbit or reveal', build(false), []);
 check('explicit cameraPath overrides minimal mode',
   build(false, { cameraPath: createOrbitCameraPath() }), ['camera-path-orbit']);
 
+// --- PlayCanvas gsplat renderer -------------------------------------------
+// Regression guard for the reveal effect. Under the unified renderer
+// `gsplat.material` is null, so features have no material to touch and the
+// two-stage reveal silently does nothing. The default flipped to unified in
+// PlayCanvas 2.14+, which broke the effect for anyone on a current release.
+// src/viewer.js passes `unified: false`; this asserts that option is still
+// honoured by whatever PlayCanvas is installed.
+{
+  // Half one: the viewer still asks for a per-instance material. Asserted
+  // against the built output, since exercising the real code path needs WebGL
+  // and a loaded splat asset.
+  // Resolved from the package root, not this file: the test runs as a bundle
+  // from .check-out/, so import.meta.url points somewhere else.
+  const { readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const built = readFileSync(join(process.cwd(), 'dist', 'viewer.js'), 'utf8');
+  check('viewer creates the gsplat component with unified:false',
+    /addComponent\(\s*["']gsplat["']\s*,\s*\{\s*unified:\s*false/.test(built), true);
+
+  // Half two: PlayCanvas still honours the option.
+  const pc = await import('playcanvas/build/playcanvas.mjs');
+  const app = new pc.AppBase({ id: 'contract-test' });
+  app.init({
+    graphicsDevice: new pc.NullGraphicsDevice({}),
+    componentSystems: [pc.GSplatComponentSystem],
+    resourceHandlers: [],
+  });
+
+  const forced = new pc.Entity('forced', app);
+  forced.addComponent('gsplat', { unified: false });
+  check('gsplat honours unified:false (reveal effect needs a material)',
+    forced.gsplat.unified, false);
+
+  const bare = new pc.Entity('bare', app);
+  bare.addComponent('gsplat', {});
+  console.log(`     note: this PlayCanvas defaults unified to ${bare.gsplat.unified}`);
+}
+
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
