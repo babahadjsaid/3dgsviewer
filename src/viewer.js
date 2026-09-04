@@ -1116,10 +1116,30 @@ function scheduleFrame(callback) {
 				}
 				app.root.addChild(nextEntity);
 
-				if (previousEntity) previousEntity.destroy();
-				if (previousAsset) {
-					app.assets.remove(previousAsset);
-					previousAsset.unload();
+				// A gsplat does not draw on the frame it is added -- its splats are
+				// sorted on a worker first -- so destroying the previous scene here
+				// leaves empty frames, which reads as a black flash on every update.
+				// Hold the old scene until the new one has actually sorted; if the
+				// sorter is not reachable yet, fall back to two rendered frames.
+				let retired = false;
+				const retire = () => {
+					if (retired) return;
+					retired = true;
+					if (previousEntity) previousEntity.destroy();
+					if (previousAsset) {
+						app.assets.remove(previousAsset);
+						previousAsset.unload();
+					}
+				};
+				const instance = nextEntity.gsplat && nextEntity.gsplat.instance;
+				const sorter = instance && instance.sorter;
+				if (sorter && typeof sorter.once === "function") {
+					sorter.once("sorted", retire);
+					setTimeout(retire, 3000);
+				} else {
+					// No sorter yet: give the new scene two full frames to appear.
+					requestAnimationFrame(() => requestAnimationFrame(retire));
+					setTimeout(retire, 3000);
 				}
 				splatEntity = nextEntity;
 				splatAsset = nextAsset;
