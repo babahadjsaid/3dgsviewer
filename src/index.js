@@ -14,4 +14,8 @@ export {
   createRevealLoadingEffect,
   revealGlsl,
   revealWgsl,
+  createLiveSplatStream,
+  unpackSnapshot,
+  toSplatData,
+  PACK_ROTATION_QUAT,
 } from './features/index.js';

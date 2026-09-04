@@ -467,6 +467,7 @@ function scheduleFrame(callback) {
 					getViewportSize: () => [innerWidth, innerHeight],
 
 					getSplatEntity: () => splatEntity,
+					showSplatData,
 					getSplatMaterial: () => splatEntity?.gsplat?.material ?? null,
 					getSceneFit: () => sceneFit,
 					getOriginDistances: () => originDistances,
@@ -1092,6 +1093,38 @@ function scheduleFrame(callback) {
 				});
 			}
 
+			/**
+			 * Swap in a scene built from data rather than fetched from a URL.
+			 * Mirrors the URL path exactly: build the next entity, add it, then
+			 * destroy the previous one, so there is never a frame with nothing.
+			 */
+			function showSplatData(splatData, rotationQuat) {
+				const previousEntity = splatEntity;
+				const previousAsset = splatAsset;
+
+				const resource = new pc.GSplatResource(app.graphicsDevice, splatData);
+				const nextAsset = new pc.Asset("live-scene", "gsplat", null);
+				nextAsset.resource = resource;
+				nextAsset.loaded = true;
+				app.assets.add(nextAsset);
+
+				const nextEntity = new pc.Entity("Splat");
+				nextEntity.addComponent("gsplat", { unified: false, asset: nextAsset });
+				if (rotationQuat) {
+					const [w, x, y, z] = rotationQuat;
+					nextEntity.setLocalRotation(new pc.Quat(x, y, z, w));
+				}
+				app.root.addChild(nextEntity);
+
+				if (previousEntity) previousEntity.destroy();
+				if (previousAsset) {
+					app.assets.remove(previousAsset);
+					previousAsset.unload();
+				}
+				splatEntity = nextEntity;
+				splatAsset = nextAsset;
+			}
+
 			// ---------------- IMU control ----------------
 
 			let fov_x = Math.PI / 9;
@@ -1519,6 +1552,8 @@ function scheduleFrame(callback) {
 					cameraPath: runtimeOptions.cameraPath ?? defaultsOff,
 					overlays: runtimeOptions.overlays ?? (mode.motion ? undefined : []),
 					loadingEffect: runtimeOptions.loadingEffect ?? defaultsOff,
+					subscription: runtimeOptions.subscription,
+					showCameraFrustums: runtimeOptions.showCameraFrustums,
 					revealEffect: runtimeOptions.revealEffect,
 					revealDurationMs: runtimeOptions.revealDurationMs,
 					revealEpsilon: runtimeOptions.revealEpsilon,
@@ -1531,7 +1566,13 @@ function scheduleFrame(callback) {
 			async function main() {
 				try {
 					const sceneUrl = typeof runtimeOptions.src === "string" ? runtimeOptions.src.trim() : "";
-					if (!sceneUrl) throw new Error("GaussianSplatViewer requires a non-empty src URL or path.");
+					const liveSubscription = mode.live
+						&& typeof runtimeOptions.subscription?.service?.on === "function"
+						&& typeof runtimeOptions.subscription?.topic === "string"
+						&& runtimeOptions.subscription.topic.trim();
+					if (!sceneUrl && !liveSubscription) {
+						throw new Error("GaussianSplatViewer requires a non-empty src URL or path.");
+					}
 
 					const suppliedView = resolveInitialViewMatrix(runtimeOptions.initialCameraPose);
 					defaultViewMatrix = suppliedView ? [...suppliedView] : null;
@@ -1593,10 +1634,12 @@ function scheduleFrame(callback) {
 
 					registerFeatures(buildFeatureList());
 
-					// `format` lets callers with an extensionless URL (blob:, custom
-					// protocol, ...) tell the loader which parser to use.
-					await loadSource(sceneUrl, runtimeOptions.format);
-					if (viewerDestroyed) return;
+					if (sceneUrl) {
+						// `format` lets callers with an extensionless URL (blob:, custom
+						// protocol, ...) tell the loader which parser to use.
+						await loadSource(sceneUrl, runtimeOptions.format);
+						if (viewerDestroyed) return;
+					}
 
 					attachControls(canvas);
 					attachViewToolbar();

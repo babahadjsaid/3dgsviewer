@@ -77,6 +77,9 @@
 //   Scene content
 //   -------------
 // @property {() => object|null} getSplatEntity
+// @property {(splatData: object, rotationQuat?: number[]) => void} showSplatData
+//     Replace the scene with splats built in memory rather than fetched.
+//     `rotationQuat` is [w,x,y,z] applied to the entity.
 // @property {() => object|null} getSplatMaterial   The gsplat entity's
 //     per-instance material (the viewer always uses per-instance rendering), or
 //     null if it is not ready.

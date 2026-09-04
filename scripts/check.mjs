@@ -66,6 +66,8 @@ async function run() {
   const entry = (await readdir(dir)).find((f) => /^render-check\.m?js$/.test(f));
   if (!entry) throw new Error(`no contract-test bundle emitted in ${dir}`);
   await import(pathToFileURL(join(dir, entry)).href);
+
+  await import(pathToFileURL(resolve('test/unpack-check.mjs')).href);
 }
 
 run().catch((err) => {
