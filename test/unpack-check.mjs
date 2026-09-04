@@ -4,6 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { createLiveSplatStream, unpackSnapshot } from '../src/features/live-splat-stream.js';
+import { defaultFeatures } from '../src/features/index.js';
 
 const SH_C0 = 0.28209479177387814;
 
@@ -99,5 +100,53 @@ try {
 
 assert.doesNotThrow(() => createLiveSplatStream().setup({ showSplatData() {} }));
 assert.doesNotThrow(() => createLiveSplatStream({ subscription: { topic: 'gs:job-7' } }).setup({ showSplatData() {} }));
+
+// A transport registration failure must not abort viewer setup, and its
+// teardown must remain safe when registration never produced an unsubscribe.
+const registrationFailure = createLiveSplatStream({
+  subscription: {
+    service: { on() { throw new Error('event bus unavailable'); } },
+    topic: 'gs:job-7',
+  },
+});
+const quietWarn = console.warn;
+console.warn = () => {};
+try {
+  assert.doesNotThrow(() => registrationFailure.setup({ showSplatData() {} }));
+  assert.doesNotThrow(() => registrationFailure.teardown());
+} finally {
+  console.warn = quietWarn;
+}
+
+// Teardown consumes its subscription before invoking it, so a throwing
+// unsubscribe cannot be retried by a later teardown.
+let throwingUnsubscribeCalls = 0;
+const unsubscribeFailure = createLiveSplatStream({
+  subscription: {
+    service: {
+      on() {
+        return () => {
+          throwingUnsubscribeCalls += 1;
+          throw new Error('event bus cleanup unavailable');
+        };
+      },
+    },
+    topic: 'gs:job-7',
+  },
+});
+unsubscribeFailure.setup({ showSplatData() {} });
+console.warn = () => {};
+try {
+  assert.doesNotThrow(() => unsubscribeFailure.teardown());
+  assert.doesNotThrow(() => unsubscribeFailure.teardown());
+} finally {
+  console.warn = quietWarn;
+}
+assert.equal(throwingUnsubscribeCalls, 1);
+
+const subscription = { service: { on() { return () => {}; } }, topic: 'gs:job-7' };
+const featureIds = (options) => defaultFeatures(options).map((feature) => feature.id);
+assert.equal(featureIds({ live: false, subscription }).includes('live-splat-stream'), false);
+assert.equal(featureIds({ live: true, subscription }).includes('live-splat-stream'), true);
 
 console.log('unpack-check: ok');

@@ -139,22 +139,33 @@ export function createLiveSplatStream(options = {}) {
 			const { service, topic } = options.subscription || {};
 			if (!service || typeof service.on !== 'function' || !topic) return;
 
-			off = service.on(topic, (event) => {
-				const payload = event?.data?.payload;
-				if (typeof payload !== 'string') return;
-				try {
-					const binary = atob(payload);
-					const bytes = new Uint8Array(binary.length);
-					for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-					scene.showSplatData(toSplatData(unpackSnapshot(bytes)), PACK_ROTATION_QUAT);
-				} catch (error) {
-					console.warn('[live-splat-stream] dropped a snapshot:', error);
-				}
-			});
+			try {
+				off = service.on(topic, (event) => {
+					const payload = event?.data?.payload;
+					if (typeof payload !== 'string') return;
+					try {
+						const binary = atob(payload);
+						const bytes = new Uint8Array(binary.length);
+						for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+						scene.showSplatData(toSplatData(unpackSnapshot(bytes)), PACK_ROTATION_QUAT);
+					} catch (error) {
+						console.warn('[live-splat-stream] dropped a snapshot:', error);
+					}
+				});
+			} catch (error) {
+				off = null;
+				console.warn('[live-splat-stream] could not subscribe:', error);
+			}
 		},
 		teardown() {
-			if (typeof off === 'function') off();
+			const unsubscribe = off;
 			off = null;
+			if (typeof unsubscribe !== 'function') return;
+			try {
+				unsubscribe();
+			} catch (error) {
+				console.warn('[live-splat-stream] could not unsubscribe:', error);
+			}
 		},
 	};
 }

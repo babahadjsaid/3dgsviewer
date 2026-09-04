@@ -57,7 +57,7 @@ export function defaultFeatures(options = {}) {
 		}));
 	}
 
-	if (options.subscription) {
+	if (options.live && options.subscription) {
 		list.push(createLiveSplatStream({ subscription: options.subscription }));
 	}
 
