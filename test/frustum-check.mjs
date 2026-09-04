@@ -60,4 +60,45 @@ feature.teardown({});
 feature.teardown({});
 assert.equal(unsubscribeCalls, 1, 'unsubscribes exactly once');
 
+// Event-bus failures are preview-only faults and never escape feature setup.
+const registrationFailure = createCameraFrustums({
+	subscription: {
+		service: { on() { throw new Error('camera event bus unavailable'); } },
+		topic: 'viewer.camera-poses',
+	},
+});
+const warn = console.warn;
+console.warn = () => {};
+try {
+	assert.doesNotThrow(() => registrationFailure.setup({}));
+	assert.doesNotThrow(() => registrationFailure.teardown({}));
+} finally {
+	console.warn = warn;
+}
+
+// A failed unsubscribe is contained and cleared before it can be retried.
+let throwingUnsubscribeCalls = 0;
+const unsubscribeFailure = createCameraFrustums({
+	subscription: {
+		service: {
+			on() {
+				return () => {
+					throwingUnsubscribeCalls += 1;
+					throw new Error('camera event bus cleanup unavailable');
+				};
+			},
+		},
+		topic: 'viewer.camera-poses',
+	},
+});
+unsubscribeFailure.setup({});
+console.warn = () => {};
+try {
+	assert.doesNotThrow(() => unsubscribeFailure.teardown({}));
+	assert.doesNotThrow(() => unsubscribeFailure.teardown({}));
+} finally {
+	console.warn = warn;
+}
+assert.equal(throwingUnsubscribeCalls, 1, 'throwing unsubscribe remains one-shot');
+
 console.log('frustum-check: ok');

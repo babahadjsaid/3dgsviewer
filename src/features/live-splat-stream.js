@@ -141,6 +141,7 @@ export function createLiveSplatStream(options = {}) {
 
 			try {
 				off = service.on(topic, (event) => {
+					if (event?.event !== 'gs_snapshot') return;
 					const payload = event?.data?.payload;
 					if (typeof payload !== 'string') return;
 					try {
