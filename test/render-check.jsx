@@ -1,6 +1,7 @@
 // Contract test for the package. Runs as an SSR bundle (see scripts/check.mjs)
 // so it exercises the real component and the real feature wiring, no browser.
 import { renderToStaticMarkup } from 'react-dom/server';
+import assert from 'node:assert/strict';
 // Imports the BUILT output - the exact files a consumer resolves through the
 // package's "exports" map - so the gate covers the compiled JSX too.
 import { GaussianSplatViewer, createViewer, startViewer } from '../dist/index.js';
@@ -41,6 +42,24 @@ check('full mode renders canvas', full.includes('data-viewer-element="canvas"'),
 check('minimal mode renders canvas', min.includes('data-viewer-element="canvas"'), true);
 check('minimal mode is canvas only', min.replace(/<main[^>]*>|<\/main>/g, ''),
   '<canvas class="viewer-canvas" data-viewer-element="canvas"></canvas>');
+
+// Streaming: model-only chrome, but the fps readout stays.
+{
+  const html = renderToStaticMarkup(<GaussianSplatViewer mode="streaming" src="x.ply" />);
+  assert(!html.includes('view-toolbar'), 'streaming must not render the toolbar');
+  assert(!html.includes('data-viewer-element="spinner"'), 'streaming must not render the spinner');
+  assert(!html.includes('data-viewer-element="instructions"'), 'streaming must not render the controls hint');
+  assert(html.includes('data-viewer-element="fps"'), 'streaming must keep the fps readout');
+  assert(html.includes('data-viewer-element="canvas"'), 'streaming must render the canvas');
+}
+
+// Back-compat: the old prop still means exactly what it meant.
+{
+  const minimal = renderToStaticMarkup(<GaussianSplatViewer fullScreen={false} src="x.ply" />);
+  assert(!minimal.includes('data-viewer-element="fps"'), 'fullScreen={false} must stay model-only');
+  const full = renderToStaticMarkup(<GaussianSplatViewer fullScreen src="x.ply" />);
+  assert(full.includes('view-toolbar'), 'fullScreen must still render the toolbar');
+}
 
 // --- feature wiring per mode -------------------------------------------------
 // Mirrors buildFeatureList() in src/viewer.js.

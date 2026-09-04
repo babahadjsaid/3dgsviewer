@@ -13,35 +13,41 @@ let runtimeOptions = {};
 let loadController = null;
 let features = [];
 let sceneApi = null;
-// `fullScreen: false` strips the viewer down to the model alone - see
-// resolveMode(). Defaults to the full experience.
-let mode = resolveMode(true);
+let mode = resolveMode({});
 let sceneFit = null;          // { center, axes:{right,up,backward}, halfExtents, distance }
 let originDistances = null;   // { minDist, maxDist }
 
 /**
- * Translate the `fullScreen` option into the capability flags the rest of the
- * viewer checks.
+ * Translate `mode` (or the legacy `fullScreen`) into capability flags.
  *
- * `fullScreen: true` (default) is the complete experience: title, help, view
- * toolbar, overlay toggles, fps readout, spinner/progress/status, the reveal
- * intro, the "P" orbit, keyboard + gamepad + drag-and-drop.
+ * `full`      the complete experience: title, help, view toolbar, overlay
+ *             toggles, fps, spinner/progress/status, the reveal intro, the
+ *             "P" orbit, keyboard + gamepad + drag-and-drop.
+ * `embedded`  model only: no chrome, no reveal, no orbit, no keyboard,
+ *             gamepad or drop target. Mouse and touch still drive the camera.
+ * `streaming` `embedded` plus the fps readout, and `live` so the splat stream
+ *             feature knows to drive the scene from a subscription rather
+ *             than a URL.
  *
- * `fullScreen: false` is model-only: no chrome at all, no reveal animation, no
- * orbit path, no keyboard, no gamepad, no drop target. Mouse (and the touch
- * gestures that mirror it) still drive the camera, and `onReady` / `onError`
- * still fire so the host app can render its own loading and error UI.
+ * `fullScreen: false` remains exactly `embedded` and `fullScreen: true`
+ * exactly `full`, so existing consumers are untouched.
  */
-function resolveMode(fullScreen) {
-	const full = fullScreen !== false;
+function resolveMode(options = {}) {
+	const named = typeof options === 'string' ? options : options.mode;
+	const legacy = typeof options === 'object' ? options.fullScreen : undefined;
+	const name = named || (legacy === false ? 'embedded' : 'full');
+	const full = name === 'full';
+	const streaming = name === 'streaming';
 	return {
 		full,
-		chrome: full,      // title, help, toolbar, fps, spinner, progress, status
+		chrome: full,      // title, help, toolbar, spinner, progress, status
+		fps: full || streaming,
 		motion: full,      // reveal intro + orbit camera path
 		keyboard: full,
 		gamepad: full,
 		dragDrop: full,
 		pointer: true,     // mouse / wheel / touch: always on
+		live: streaming,
 	};
 }
 
@@ -1540,7 +1546,7 @@ function scheduleFrame(callback) {
 						return c;
 					})();
 
-					const fpsEl = getViewerElement("fps");
+					const fpsEl = mode.fps ? getViewerElement("fps") : null;
 
 					app = new pc.Application(canvas, {
 						graphicsDeviceOptions: {
@@ -1637,7 +1643,7 @@ function destroyViewer() {
 function startViewer(options = {}) {
 	destroyViewer();
 	runtimeOptions = options;
-	mode = resolveMode(options.fullScreen);
+	mode = resolveMode(options);
 	viewerRoot = options.root || document;
 	resetViewerState();
 	viewerDestroyed = false;

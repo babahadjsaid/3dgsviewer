@@ -20,6 +20,8 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   // path, no keyboard or gamepad, no drop target - mouse/touch only. Use
   // `onReady` / `onError` to drive your own loading and error UI.
   fullScreen = true,
+  mode,
+  subscription,
   title = '3D Gaussian Splat Viewer',
   showHelp = true,
   showTitle = true,
@@ -62,12 +64,13 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       format,
       initialCameraPose,
       fullScreen,
+      mode,
+      subscription,
       imuWebSocketUrl,
       revealEffect,
       revealDurationMs,
       revealEpsilon,
       revealPointSize,
-  revealPointSize,
       revealExponentMin,
       revealExponentMax,
       // Feature plug-ins (see src/features/feature-api.js). Pass stable
@@ -87,13 +90,16 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       if (controllerRef.current === controller) controllerRef.current = null;
     };
   }, [
-    src, format, initialCameraPose, imuWebSocketUrl, fullScreen,
+    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
     features, cameraPath, overlays, loadingEffect,
   ]);
 
-  if (!fullScreen) {
+  const resolved = mode || (fullScreen === false ? 'embedded' : 'full');
+
+  if (resolved !== 'full') {
     // Model only. No tabIndex either - nothing here takes keyboard focus.
+    // Streaming keeps one piece of chrome: the fps readout.
     return (
       <main
         ref={rootRef}
@@ -102,6 +108,11 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
         aria-label={title}
       >
         <canvas className="viewer-canvas" data-viewer-element="canvas" />
+        {resolved === 'streaming' && (
+          <div className="viewer-quality" data-viewer-element="quality">
+            <span data-viewer-element="fps" />
+          </div>
+        )}
       </main>
     );
   }
