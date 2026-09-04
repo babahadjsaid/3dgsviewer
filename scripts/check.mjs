@@ -68,6 +68,7 @@ async function run() {
   await import(pathToFileURL(join(dir, entry)).href);
 
   await import(pathToFileURL(resolve('test/unpack-check.mjs')).href);
+  await import(pathToFileURL(resolve('test/frustum-check.mjs')).href);
 }
 
 run().catch((err) => {

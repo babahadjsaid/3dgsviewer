@@ -28,6 +28,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   className = '',
   style,
   imuWebSocketUrl,
+  showCameraFrustums,
   revealEffect,
   revealDurationMs,
   revealEpsilon,
@@ -67,6 +68,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       mode,
       subscription,
       imuWebSocketUrl,
+      showCameraFrustums,
       revealEffect,
       revealDurationMs,
       revealEpsilon,
@@ -90,7 +92,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       if (controllerRef.current === controller) controllerRef.current = null;
     };
   }, [
-    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription,
+    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
     features, cameraPath, overlays, loadingEffect,
   ]);

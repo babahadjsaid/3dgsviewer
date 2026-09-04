@@ -18,4 +18,7 @@ export {
   unpackSnapshot,
   toSplatData,
   PACK_ROTATION_QUAT,
+  createCameraFrustums,
+  viewPyramidPoints,
+  PYRAMID_EDGES,
 } from './features/index.js';

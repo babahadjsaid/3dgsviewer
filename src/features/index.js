@@ -10,11 +10,13 @@ export { createBoundingBox, createOriginAxes, pcaBoxCorners, aabbCorners } from 
 export { createRevealLoadingEffect } from './loading-effect-reveal.js';
 export { revealGlsl, revealWgsl } from './reveal-shaders.js';
 export { createLiveSplatStream, unpackSnapshot, toSplatData, PACK_ROTATION_QUAT } from './live-splat-stream.js';
+export { createCameraFrustums, viewPyramidPoints, PYRAMID_EDGES } from './camera-frustums.js';
 
 import { createOrbitCameraPath } from './camera-path-orbit.js';
 import { createBoundingBox, createOriginAxes } from './scene-overlays.js';
 import { createRevealLoadingEffect } from './loading-effect-reveal.js';
 import { createLiveSplatStream } from './live-splat-stream.js';
+import { createCameraFrustums } from './camera-frustums.js';
 
 /**
  * Build the default feature list from viewer options. The set is the same for
@@ -59,6 +61,10 @@ export function defaultFeatures(options = {}) {
 
 	if (options.live && options.subscription) {
 		list.push(createLiveSplatStream({ subscription: options.subscription }));
+	}
+
+	if (options.subscription && options.showCameraFrustums !== false) {
+		list.push(createCameraFrustums({ subscription: options.subscription }));
 	}
 
 	return list;
