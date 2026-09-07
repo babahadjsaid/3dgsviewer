@@ -1,18 +1,20 @@
 /** The training cameras, drawn as view pyramids. */
 
+import * as pc from 'playcanvas/build/playcanvas.mjs';
+
 const GREEN = [0, 1, 0, 1];
 
 /** apex, then the four image corners, in world space. */
 export function viewPyramidPoints({ fx, fy, cx, cy, R_c2w, C_w, w, h, scale }) {
-	const corners = [[0, 0], [w, 0], [w, h], [0, h]];
+	const corners = [[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]];
 	const points = [[...C_w]];
 	for (const [u, v] of corners) {
-		const camera = [((u - cx) / fx) * scale, ((v - cy) / fy) * scale, scale];
-		points.push([
-			C_w[0] + R_c2w[0][0] * camera[0] + R_c2w[0][1] * camera[1] + R_c2w[0][2] * camera[2],
-			C_w[1] + R_c2w[1][0] * camera[0] + R_c2w[1][1] * camera[1] + R_c2w[1][2] * camera[2],
-			C_w[2] + R_c2w[2][0] * camera[0] + R_c2w[2][1] * camera[1] + R_c2w[2][2] * camera[2],
-		]);
+		// Preserve the prototype HTML's compact visualization (not a physical
+		// image plane): normalize each spoke and keep its length at scale.
+		const camera = [(u - cx) / fx, (v - cy) / fy, scale / 10];
+		const direction = R_c2w.map((row) => row.reduce((sum, value, i) => sum + value * camera[i], 0));
+		const length = Math.hypot(...direction) || 1;
+		points.push(direction.map((value, i) => C_w[i] + scale * value / length));
 	}
 	return points;
 }
@@ -31,14 +33,13 @@ function isMatrix(matrix, rows, columns) {
 
 function parsePose(pose) {
 	if (!isMatrix(pose, 4, 4)) return null;
-	return {
-		R_c2w: [
-			[pose[0][0], pose[0][1], pose[0][2]],
-			[pose[1][0], pose[1][1], pose[1][2]],
-			[pose[2][0], pose[2][1], pose[2][2]],
-		],
-		C_w: [pose[0][3], pose[1][3], pose[2][3]],
-	};
+	// GSStream emits raw world-to-camera [R|t], unlike the prototype's
+	// preprocessed CAMR packets. Invert it: C=-R^T t, R_c2w=R^T.
+	// The live splat entity already undoes the packer's axis rotation, so
+	// these original world coordinates need no additional axis conversion.
+	const R_c2w = [0, 1, 2].map((column) => [pose[0][column], pose[1][column], pose[2][column]]);
+	const t = [pose[0][3], pose[1][3], pose[2][3]];
+	return { R_c2w, C_w: R_c2w.map((row) => -row.reduce((sum, value, i) => sum + value * t[i], 0)) };
 }
 
 function parseIntrinsics(intr) {
@@ -54,6 +55,42 @@ export function createCameraFrustums(options = {}) {
 	const scale = options.scale ?? 0.1;
 	let off = null;
 	let cameras = [];
+	let root = null;
+	let mesh = null;
+	let material = null;
+
+	function destroyGeometry() {
+		root?.destroy();
+		mesh?.destroy();
+		material?.destroy();
+		root = mesh = material = null;
+	}
+
+	function buildGeometry(scene) {
+		destroyGeometry();
+		if (!cameras.length || !scene.app?.graphicsDevice || !scene.app?.root) return;
+		// Opaque world geometry renders before transparent splats, just like
+		// the origin axes. Immediate debug lines render after the splats and
+		// cannot be occluded by their accumulated opacity.
+		mesh = new pc.Mesh(scene.app.graphicsDevice);
+		mesh.setPositions(cameras.flat(2));
+		mesh.setIndices(cameras.flatMap((_, i) => PYRAMID_EDGES.flatMap(([a, b]) => [i * 5 + a, i * 5 + b])));
+		mesh.update(pc.PRIMITIVE_LINES);
+		material = new pc.StandardMaterial();
+		material.diffuse = new pc.Color(...GREEN);
+		material.emissive = new pc.Color(...GREEN);
+		material.useLighting = false;
+		material.depthTest = true;
+		material.depthWrite = true;
+		material.update();
+		root = new pc.Entity('Training camera frustums');
+		root.addComponent('render', {
+			meshInstances: [new pc.MeshInstance(mesh, material)],
+			castShadows: false,
+			receiveShadows: false,
+		});
+		scene.app.root.addChild(root);
+	}
 
 	return {
 		id: 'camera-frustums',
@@ -74,6 +111,7 @@ export function createCameraFrustums(options = {}) {
 						next.push(viewPyramidPoints({ ...intrinsics, ...pose, scale }));
 					}
 					cameras = next;
+					buildGeometry(scene);
 				});
 			} catch (error) {
 				off = null;
@@ -81,14 +119,16 @@ export function createCameraFrustums(options = {}) {
 			}
 		},
 		frame(now, scene) {
+			if (root) return;
 			for (const points of cameras) {
-				for (const [a, b] of PYRAMID_EDGES) scene.drawLine(points[a], points[b], GREEN);
+				for (const [a, b] of PYRAMID_EDGES) scene.drawLine(points[a], points[b], GREEN, true);
 			}
 		},
 		teardown(scene) {
 			const unsubscribe = off;
 			off = null;
 			cameras = [];
+			destroyGeometry();
 			if (typeof unsubscribe !== 'function') return;
 			try {
 				unsubscribe();

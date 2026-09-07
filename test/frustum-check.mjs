@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { viewPyramidPoints, PYRAMID_EDGES, createCameraFrustums } from '../src/features/camera-frustums.js';
+import { viewPyramidPoints, PYRAMID_EDGES, createCameraFrustums } from '../dist/features/camera-frustums.js';
 
 const identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 const points = viewPyramidPoints({
@@ -13,9 +13,9 @@ assert.equal(PYRAMID_EDGES.length, 8, 'four apex spokes plus the image rectangle
 for (const [a, b] of PYRAMID_EDGES) {
 	assert.ok(a >= 0 && a < 5 && b >= 0 && b < 5, 'edges index real points');
 }
-// With a centred principal point the four corners are symmetric about the axis.
-const xs = points.slice(1).map((p) => p[0]);
-assert.ok(Math.abs(xs.reduce((a, b) => a + b, 0)) < 1e-9, 'corners are symmetric in x');
+// The original HTML normalizes each compact spoke to the requested scale.
+for (const point of points.slice(1)) assert.ok(Math.abs(Math.hypot(...point) - 1) < 1e-9);
+assert.ok(points[1][2] < 0.15, 'keeps the original shallow pyramid shape');
 
 const received = [];
 let unsubscribeCalls = 0;
@@ -54,8 +54,9 @@ received[0]({
 });
 feature.frame(0, { drawLine: (...args) => lines.push(args) });
 assert.equal(lines.length, 16, 'draws eight lines per received camera');
-assert.deepEqual(lines[0][0], [1, 2, 3], 'uses each pose camera centre as the pyramid apex');
+assert.deepEqual(lines[0][0], [-1, -2, -3], 'inverts SDK world-to-camera translation');
 
+assert.equal(lines[0][3], true, 'fallback lines use depth testing');
 feature.teardown({});
 feature.teardown({});
 assert.equal(unsubscribeCalls, 1, 'unsubscribes exactly once');
