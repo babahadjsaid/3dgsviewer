@@ -1125,6 +1125,10 @@ function scheduleFrame(callback) {
 				const retire = () => {
 					if (retired) return;
 					retired = true;
+					// The viewer may already be gone: this runs from a timer, and
+					// the panel swaps streaming for the finished model the moment
+					// training ends. A destroyed app leaves `app` null.
+					if (!app) return;
 					if (previousEntity) previousEntity.destroy();
 					if (previousAsset) {
 						app.assets.remove(previousAsset);
