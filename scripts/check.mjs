@@ -67,6 +67,7 @@ async function run() {
   if (!entry) throw new Error(`no contract-test bundle emitted in ${dir}`);
   await import(pathToFileURL(resolve('test/unpack-check.mjs')).href);
   await import(pathToFileURL(resolve('test/frustum-check.mjs')).href);
+  await import(pathToFileURL(resolve('test/snapshot-handoff-check.mjs')).href);
   await import(pathToFileURL(resolve('test/frustum-geometry-check.mjs')).href);
   await import(pathToFileURL(join(dir, entry)).href);
 

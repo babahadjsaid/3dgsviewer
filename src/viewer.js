@@ -1,6 +1,7 @@
 import * as pc from 'playcanvas/build/playcanvas.mjs';
 import { resolveFeature } from './features/feature-api.js';
 import { defaultFeatures } from './features/index.js';
+import { createSnapshotHandoff } from './snapshot-handoff.js';
 
 export function createViewer(options = {}) {
 let viewerRoot = document;
@@ -76,6 +77,7 @@ function scheduleFrame(callback) {
 			let app = null;
 			let splatEntity = null;
 			let splatAsset = null;
+			let snapshotHandoff = null;
 			let activeKeys = [];
 			let jumpDelta = 0;
 			let lastFrame = 0;
@@ -1095,8 +1097,8 @@ function scheduleFrame(callback) {
 
 			/**
 			 * Swap in a scene built from data rather than fetched from a URL.
-			 * Mirrors the URL path exactly: build the next entity, add it, then
-			 * destroy the previous one, so there is never a frame with nothing.
+			 * Keep the previous snapshot until the replacement has drawable splats.
+			 * Worker sorting can take multiple frames, particularly on large scenes.
 			 */
 			function showSplatData(splatData, rotationQuat) {
 				const previousEntity = splatEntity;
@@ -1116,35 +1118,8 @@ function scheduleFrame(callback) {
 				}
 				app.root.addChild(nextEntity);
 
-				// A gsplat does not draw on the frame it is added -- its splats are
-				// sorted on a worker first -- so destroying the previous scene here
-				// leaves empty frames, which reads as a black flash on every update.
-				// Hold the old scene until the new one has actually sorted; if the
-				// sorter is not reachable yet, fall back to two rendered frames.
-				let retired = false;
-				const retire = () => {
-					if (retired) return;
-					retired = true;
-					// The viewer may already be gone: this runs from a timer, and
-					// the panel swaps streaming for the finished model the moment
-					// training ends. A destroyed app leaves `app` null.
-					if (!app) return;
-					if (previousEntity) previousEntity.destroy();
-					if (previousAsset) {
-						app.assets.remove(previousAsset);
-						previousAsset.unload();
-					}
-				};
-				const instance = nextEntity.gsplat && nextEntity.gsplat.instance;
-				const sorter = instance && instance.sorter;
-				if (sorter && typeof sorter.once === "function") {
-					sorter.once("sorted", retire);
-					setTimeout(retire, 3000);
-				} else {
-					// No sorter yet: give the new scene two full frames to appear.
-					requestAnimationFrame(() => requestAnimationFrame(retire));
-					setTimeout(retire, 3000);
-				}
+				snapshotHandoff ??= createSnapshotHandoff(app);
+				snapshotHandoff.replace(nextEntity, previousEntity, previousAsset, splatData.numSplats === 0);
 				splatEntity = nextEntity;
 				splatAsset = nextAsset;
 			}
@@ -1703,6 +1678,8 @@ function destroyViewer() {
 	resizeObserver?.disconnect();
 	resizeObserver = null;
 	if (app) {
+		snapshotHandoff?.destroy();
+		snapshotHandoff = null;
 		app.destroy();
 		app = null;
 	}
