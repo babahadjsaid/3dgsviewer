@@ -33,6 +33,7 @@ const feature = createCameraFrustums({
 });
 feature.setup({});
 assert.equal(received.length, 1, 'sets up one camera subscription');
+feature.sceneReady({ drawLine: (...args) => lines.push(args) });
 
 received[0]({ event: 'not_gs_cameras', data: { poses: [], intrs: [] } });
 received[0]({ event: 'gs_cameras', data: { poses: null, intrs: [] } });
