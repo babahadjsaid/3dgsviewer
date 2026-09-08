@@ -13,6 +13,7 @@ let receive, unsubscribed=false;
 const feature=createCameraFrustums({subscription:{topic:'job',service:{on:(_,fn)=>{receive=fn;return ()=>{unsubscribed=true}}}}});
 const scene={app,drawLine(){throw Error('must use scene mesh')}};
 feature.setup(scene);
+feature.sceneReady(scene);
 const event={event:'gs_cameras',data:{poses:[[[0,-1,0,2],[1,0,0,-1],[0,0,1,-3],[0,0,0,1]]],intrs:[[[500,0,320],[0,500,240],[0,0,1]]]}};
 receive(event);
 let root=app.root.findByName('Training camera frustums');
