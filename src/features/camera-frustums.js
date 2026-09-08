@@ -135,6 +135,8 @@ export function createCameraFrustums(options = {}) {
 	let mesh = null;
 	let material = null;
 	let toggle = null;
+	let sceneReady = false;
+	let pendingPacket = null;
 
 	function destroyGeometry() {
 		root?.destroy();
@@ -159,6 +161,10 @@ export function createCameraFrustums(options = {}) {
 	}
 
 	function setPacket(packet, scene) {
+		if (!sceneReady) {
+			pendingPacket = packet;
+			return;
+		}
 		const { poses, intrs } = packet || {};
 		if (!Array.isArray(poses) || !Array.isArray(intrs)) return;
 		const next = [];
@@ -312,6 +318,14 @@ export function createCameraFrustums(options = {}) {
 			if (options.cameraPoses) setPacket(options.cameraPoses, scene);
 			attachPicking(scene);
 		},
+		sceneReady(scene) {
+			sceneReady = true;
+			if (pendingPacket) {
+				const packet = pendingPacket;
+				pendingPacket = null;
+				setPacket(packet, scene);
+			}
+		},
 		frame(now, scene) {
 			if (flight) stepFlight(now, scene);
 			if (!visible || root) return;
@@ -327,6 +341,8 @@ export function createCameraFrustums(options = {}) {
 		},
 		teardown() {
 			flight = null;
+			sceneReady = false;
+			pendingPacket = null;
 			toggle = null;
 			const unsubscribe = off;
 			off = null;
