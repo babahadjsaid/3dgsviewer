@@ -130,15 +130,55 @@ export function createCameraFrustums(options = {}) {
 	let off = null;
 	let cameras = [];   // { points, eye, forward, up } per camera, world space
 	let flight = null;  // in-flight camera transition, see flyTo()
+	let visible = true;
 	let root = null;
 	let mesh = null;
 	let material = null;
+	let toggle = null;
 
 	function destroyGeometry() {
 		root?.destroy();
 		mesh?.destroy();
 		material?.destroy();
 		root = mesh = material = null;
+	}
+
+	function updateToggle() {
+		if (!toggle) return;
+		toggle.disabled = cameras.length === 0;
+		toggle.setAttribute('aria-pressed', String(visible));
+		toggle.title = cameras.length
+			? `${visible ? 'Hide' : 'Show'} training camera pyramids`
+			: 'No camera poses are available';
+	}
+
+	function setVisible(next) {
+		visible = Boolean(next);
+		if (root) root.enabled = visible;
+		updateToggle();
+	}
+
+	function setPacket(packet, scene) {
+		const { poses, intrs } = packet || {};
+		if (!Array.isArray(poses) || !Array.isArray(intrs)) return;
+		const next = [];
+		for (let i = 0; i < Math.min(poses.length, intrs.length); i++) {
+			const pose = parsePose(poses[i]);
+			const intrinsics = parseIntrinsics(intrs[i]);
+			if (!pose || !intrinsics) continue;
+			const points = viewPyramidPoints({ ...intrinsics, ...pose, scale });
+			next.push({
+				points,
+				eye: points[0],
+				// Camera-local +Z is the view direction; +Y points down the
+				// image, so -Y (column 1, negated) is world "up".
+				forward: normalize3([pose.R_c2w[0][2], pose.R_c2w[1][2], pose.R_c2w[2][2]]),
+				up: normalize3([-pose.R_c2w[0][1], -pose.R_c2w[1][1], -pose.R_c2w[2][1]]),
+			});
+		}
+		cameras = next;
+		buildGeometry(scene);
+		updateToggle();
 	}
 
 	function buildGeometry(scene) {
@@ -165,6 +205,7 @@ export function createCameraFrustums(options = {}) {
 			receiveShadows: false,
 		});
 		scene.app.root.addChild(root);
+		root.enabled = visible;
 	}
 
 	// Pick the pyramid nearest along the ray under (clientX, clientY) and, if
@@ -250,41 +291,30 @@ export function createCameraFrustums(options = {}) {
 	return {
 		id: 'camera-frustums',
 		setup(scene) {
+			toggle = scene.queryElement?.('camera-frustums-toggle');
+			if (toggle) {
+				scene.addListener(toggle, 'click', () => setVisible(!visible));
+				updateToggle();
+			}
+
 			const { service, topic } = options.subscription || {};
 			if (service && typeof service.on === 'function' && topic) {
 				try {
 					off = service.on(topic, (event) => {
-						if (event?.event !== 'gs_cameras') return;
-						const { poses, intrs } = event.data || {};
-						if (!Array.isArray(poses) || !Array.isArray(intrs)) return;
-						const next = [];
-						for (let i = 0; i < Math.min(poses.length, intrs.length); i++) {
-							const pose = parsePose(poses[i]);
-							const intrinsics = parseIntrinsics(intrs[i]);
-							if (!pose || !intrinsics) continue;
-							const points = viewPyramidPoints({ ...intrinsics, ...pose, scale });
-							next.push({
-								points,
-								eye: points[0],
-								// Camera-local +Z is the view direction; +Y points down the
-								// image, so -Y (column 1, negated) is world "up".
-								forward: normalize3([pose.R_c2w[0][2], pose.R_c2w[1][2], pose.R_c2w[2][2]]),
-								up: normalize3([-pose.R_c2w[0][1], -pose.R_c2w[1][1], -pose.R_c2w[2][1]]),
-							});
-						}
-						cameras = next;
-						buildGeometry(scene);
+						if (event?.event === 'gs_cameras') setPacket(event.data, scene);
 					});
 				} catch (error) {
 					off = null;
 					console.warn('[camera-frustums] could not subscribe:', error);
 				}
 			}
+
+			if (options.cameraPoses) setPacket(options.cameraPoses, scene);
 			attachPicking(scene);
 		},
 		frame(now, scene) {
 			if (flight) stepFlight(now, scene);
-			if (root) return;
+			if (!visible || root) return;
 			for (const { points } of cameras) {
 				for (const [a, b] of PYRAMID_EDGES) scene.drawLine(points[a], points[b], GREEN, true);
 			}
@@ -295,8 +325,9 @@ export function createCameraFrustums(options = {}) {
 		userInteraction() {
 			flight = null;
 		},
-		teardown(scene) {
+		teardown() {
 			flight = null;
+			toggle = null;
 			const unsubscribe = off;
 			off = null;
 			cameras = [];

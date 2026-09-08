@@ -29,6 +29,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   style,
   imuWebSocketUrl,
   showCameraFrustums,
+  cameraPoses,
   revealEffect,
   revealDurationMs,
   revealEpsilon,
@@ -69,6 +70,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       subscription,
       imuWebSocketUrl,
       showCameraFrustums,
+      cameraPoses,
       revealEffect,
       revealDurationMs,
       revealEpsilon,
@@ -92,7 +94,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       if (controllerRef.current === controller) controllerRef.current = null;
     };
   }, [
-    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums,
+    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraPoses,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
     features, cameraPath, overlays, loadingEffect,
   ]);
@@ -146,6 +148,7 @@ other
 - use the bottom toolbar for fitted side views
 - Axes toggles the global origin frame
 - BBox toggles the computed bounding box
+- Cameras toggles camera pyramids when poses are available
 - drop a supported Gaussian scene onto the viewer`}</div>
           </details>
         )}
@@ -178,6 +181,9 @@ other
         </button>
         <button type="button" data-viewer-element="bbox-toggle" title="Show computed bounding box" aria-pressed="false" disabled>
           <span className="view-icon">◇</span>BBox
+        </button>
+        <button type="button" data-viewer-element="camera-frustums-toggle" title="No camera poses are available" aria-pressed="true" disabled>
+          <span className="view-icon">△</span>Cameras
         </button>
       </nav>
 

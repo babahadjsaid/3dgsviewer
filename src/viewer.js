@@ -1554,6 +1554,7 @@ function scheduleFrame(callback) {
 					live: mode.live,
 					subscription: mode.live ? runtimeOptions.subscription : undefined,
 					showCameraFrustums: runtimeOptions.showCameraFrustums,
+					cameraPoses: runtimeOptions.cameraPoses,
 					revealEffect: runtimeOptions.revealEffect,
 					revealDurationMs: runtimeOptions.revealDurationMs,
 					revealEpsilon: runtimeOptions.revealEpsilon,

@@ -30,6 +30,9 @@ import { createCameraFrustums } from './camera-frustums.js';
  *   revealEffect?: boolean,
  *   revealDurationMs?: number, revealEpsilon?: number, revealPointSize?: number,
  *   revealExponentMin?: number, revealExponentMax?: number,
+ *   subscription?: object,
+ *   cameraPoses?: {poses: Array, intrs: Array},
+ *   showCameraFrustums?: boolean,
  * }} [options]
  */
 export function defaultFeatures(options = {}) {
@@ -63,8 +66,11 @@ export function defaultFeatures(options = {}) {
 		list.push(createLiveSplatStream({ subscription: options.subscription }));
 	}
 
-	if (options.subscription && options.showCameraFrustums !== false) {
-		list.push(createCameraFrustums({ subscription: options.subscription }));
+	if ((options.subscription || options.cameraPoses) && options.showCameraFrustums !== false) {
+		list.push(createCameraFrustums({
+			subscription: options.subscription,
+			cameraPoses: options.cameraPoses,
+		}));
 	}
 
 	return list;
