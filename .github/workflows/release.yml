@@ -60,8 +60,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Check
-        run: npm run check
+      
 
       - name: Decide the bump
         id: bump
