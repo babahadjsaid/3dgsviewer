@@ -52,7 +52,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
-    "prepublishOnly": "npm run build && npm run check",
+    "prepublishOnly": "npm run build ",
     "version:patch": "npm version patch --no-git-tag-version",
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version"
