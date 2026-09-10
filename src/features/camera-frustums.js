@@ -12,7 +12,7 @@ export function viewPyramidPoints({ fx, fy, cx, cy, R_c2w, C_w, w, h, scale }) {
 	for (const [u, v] of corners) {
 		// Preserve the prototype HTML's compact visualization (not a physical
 		// image plane): normalize each spoke and keep its length at scale.
-		const camera = [(u - cx) / fx, (v - cy) / fy, scale / 10];
+		const camera = [(u - cx) / fx, (v - cy) / fy, 1];
 		const direction = R_c2w.map((row) => row.reduce((sum, value, i) => sum + value * camera[i], 0));
 		const length = Math.hypot(...direction) || 1;
 		points.push(direction.map((value, i) => C_w[i] + scale * value / length));
@@ -127,6 +127,7 @@ const FLY_DURATION_MS = 550;
 
 export function createCameraFrustums(options = {}) {
 	const scale = options.scale ?? 0.1;
+	const preserveZoom = options.preserveZoom ?? true;
 	let off = null;
 	let cameras = [];   // { points, eye, forward, up } per camera, world space
 	let flight = null;  // in-flight camera transition, see flyTo()
@@ -241,10 +242,26 @@ export function createCameraFrustums(options = {}) {
 	// `orbitDistance` are kept in step every frame of the flight so a drag
 	// that interrupts it - or one that starts right after it lands - orbits
 	// around a sane pivot instead of snapping.
+	//
+	// The pivot is handled specially, not the eye: the eye always lands
+	// exactly on the training camera's own position (that's "the exact
+	// pose"). What changes is *where the orbit target sits along the new
+	// viewing ray*. d_pivot is the distance from the pivot to the camera the
+	// user already had, measured along their current view axis - i.e.
+	// exactly their current orbit distance/zoom, since an orbit camera
+	// always looks straight at its own pivot. Placing the new pivot at
+	// that same distance out along the *new* forward direction means the
+	// eye matches the target pose exactly, while pan/orbit behaviour right
+	// after landing still feels like the zoom the user had, not whatever
+	// distance the training camera happened to be shot from.
 	function flyTo(scene, camera) {
 		const basis = scene.getCameraBasis?.();
 		if (!basis) return;
+		const dPivot = scene.getOrbitDistance?.();
 		const fit = scene.getSceneFit?.();
+		const orbitTarget = (preserveZoom && dPivot != null)
+			? camera.eye.map((value, i) => value + camera.forward[i] * dPivot)
+			: (fit ? [...fit.center] : camera.eye);
 		flight = {
 			startedAt: scene.now ? scene.now() : Date.now(),
 			eyeStart: basis.eye,
@@ -257,7 +274,7 @@ export function createCameraFrustums(options = {}) {
 				camera.eye[2] + camera.forward[2],
 			],
 			upEnd: camera.up,
-			orbitTarget: fit ? [...fit.center] : camera.eye,
+			orbitTarget,
 		};
 	}
 
