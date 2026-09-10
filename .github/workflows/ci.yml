@@ -22,7 +22,4 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Bundles dist/ for the browser and asserts the fullScreen contract
-      # against the built output. Same gate the release workflow runs.
-      - name: Check
-        run: npm run check
+ 
