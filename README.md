@@ -5,8 +5,9 @@
 Embeddable 3D Gaussian Splatting viewer. PlayCanvas under the hood, a React
 component on top, and a feature plug-in API for everything optional.
 
-Reads `.ply`, `.compressed.ply`, `.sog`, `.meta.json` and `.lod-meta.json` from
-any URL — `http(s):`, `blob:` or a custom protocol.
+Reads `.ply`, `.compressed.ply`, `.sog` and `.meta.json` from any URL —
+`http(s):`, `blob:` or a custom protocol — and streams level-of-detail
+("Streamed SOG") scenes from a `lod-meta.json` URL.
 
 ## Install
 
@@ -22,6 +23,14 @@ The viewer creates its gsplat component with `unified: false`. That is required,
 not stylistic: under PlayCanvas's unified renderer `component.material` is
 `null`, so there is no per-instance material for features to touch and the
 reveal intro silently does nothing.
+
+The one exception is streamed LOD. PlayCanvas renders an octree
+(`lod-meta.json`) only under the unified renderer, so those scenes get
+`unified: true`, skip the reveal intro, and stream their chunk units after the
+scene is ready. The viewer sets `app.scene.gsplat.lodUnderfillLimit` to
+`levels - 1`, so the coarsest resident level shows while finer ones load. The
+URL's file name must be exactly `lod-meta.json`; chunk URLs resolve next to it,
+and its query string is not carried over to them.
 
 ## Use
 
@@ -92,7 +101,9 @@ Both the component's props and `createViewer(...)` take the same names.
 | Option | Meaning |
 |---|---|
 | `src` | Scene URL. Required. |
-| `format` | `'ply'` \| `'compressed.ply'` \| `'sog'` — for extensionless URLs (`blob:`, custom protocols). |
+| `format` | `'ply'` \| `'compressed.ply'` \| `'sog'` \| `'meta.json'` \| `'lod-meta.json'` — for extensionless URLs (`blob:`, custom protocols). |
+| `splatBudget` | Streamed LOD only: global splat budget (`app.scene.gsplat.splatBudget`). Default: the engine's. |
+| `lodRangeMin` / `lodRangeMax` | Streamed LOD only: finest / coarsest level the component may use. |
 | `fullScreen` | See above. Default `true`. |
 | `initialCameraPose` | Starting camera; skips auto-framing. |
 | `root` | Core only — the element to mount into. |

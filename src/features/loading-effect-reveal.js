@@ -53,7 +53,6 @@ export function createRevealLoadingEffect(options = {}) {
 
 	function begin(scene) {
 		if (active || scene.isDestroyed()) return;
-		const mat = scene.getSplatMaterial();
 		const runOrbit = () => {
 			if (opts.startCameraPath && scene.cameraPath && !scene.cameraPath.isActive()) {
 				scene.setAutoFraming(false);
@@ -61,6 +60,14 @@ export function createRevealLoadingEffect(options = {}) {
 			}
 		};
 
+		// Streamed LOD renders through the unified renderer, which has no
+		// per-instance material by design: skip the shader, keep the motion.
+		if (scene.isStreamedLod?.()) {
+			runOrbit();
+			return;
+		}
+
+		const mat = scene.getSplatMaterial();
 		if (!mat || !mat.shaderChunks) {
 			// Unified renderer / no per-instance material: skip the shader effect
 			// but still run the accompanying motion. The viewer asks for
