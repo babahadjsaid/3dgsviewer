@@ -13,6 +13,9 @@ const viewButtons = [
 
 const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   src,
+  // Only needed for URLs without a recognisable name. Streamed LOD
+  // ('lod-meta.json') is detected from the name, which PlayCanvas requires to
+  // be exactly `lod-meta.json` anyway.
   format,
   initialCameraPose,
   // `true` (default) renders the full experience. `false` renders the model
@@ -36,6 +39,12 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   revealPointSize,
   revealExponentMin,
   revealExponentMax,
+  // Streamed LOD tuning (ignored for other formats). `splatBudget` overrides
+  // the engine's global splat budget; `lodRangeMin` / `lodRangeMax` clamp the
+  // finest / coarsest level the component may use.
+  splatBudget,
+  lodRangeMin,
+  lodRangeMax,
   features,
   cameraPath,
   overlays,
@@ -77,6 +86,9 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       revealPointSize,
       revealExponentMin,
       revealExponentMax,
+      splatBudget,
+      lodRangeMin,
+      lodRangeMax,
       // Feature plug-ins (see src/features/feature-api.js). Pass stable
       // references - like `initialCameraPose`, a new value re-initialises the
       // viewer. `features` fully replaces the default set; the others override
@@ -96,6 +108,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   }, [
     src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraPoses,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
+    splatBudget, lodRangeMin, lodRangeMax,
     features, cameraPath, overlays, loadingEffect,
   ]);
 
