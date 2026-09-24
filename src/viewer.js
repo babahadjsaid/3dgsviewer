@@ -347,6 +347,10 @@ function scheduleFrame(callback) {
 				} catch (_) {
 					pathname = String(url).split(/[?#]/, 1)[0].toLowerCase();
 				}
+				// Streamed LOD: PlayCanvas only treats a file as an octree when its
+				// basename is exactly `lod-meta.json`, and resolves the chunk units
+				// next to it. The old `*.lod-meta.json` suffix is still accepted below.
+				if (pathname.slice(pathname.lastIndexOf("/") + 1) === "lod-meta.json") return "lod-meta.json";
 				for (const format of ["lod-meta.json", "meta.json", "compressed.ply", "ply", "sog"]) {
 					if (pathname.endsWith(`.${format}`)) return format;
 				}
@@ -471,6 +475,7 @@ function scheduleFrame(callback) {
 					getSplatEntity: () => splatEntity,
 					showSplatData,
 					getSplatMaterial: () => splatEntity?.gsplat?.material ?? null,
+					isStreamedLod: () => Boolean(octreeOf(splatAsset?.resource)),
 					getSceneFit: () => sceneFit,
 					getOriginDistances: () => originDistances,
 
@@ -947,16 +952,52 @@ function scheduleFrame(callback) {
 				return true;
 			}
 
+			// A streamed-LOD (`lod-meta.json`) resource is an octree: it has
+			// `octree` and `aabb`, but no `centers` and no per-instance material.
+			function octreeOf(resource) {
+				return resource?.octree ?? null;
+			}
+
+			// An octree carries no splat centres before its chunks stream in -
+			// only each leaf's bounds and its level-0 splat count. Scatter a
+			// sample cloud through the leaves, proportional to those counts, so
+			// the density fit below sees roughly what the .ply would give it.
+			// The root `resource.aabb` alone is too coarse to frame on: it is
+			// stretched by a few huge, sparse background leaves.
+			function sampleOctreeCenters(octree, target = 60000) {
+				const leaves = (octree?.nodes ?? []).filter((node) => (node.lods?.[0]?.count ?? 0) > 0);
+				const total = leaves.reduce((sum, node) => sum + node.lods[0].count, 0);
+				if (!total) return null;
+				let seed = 1; // deterministic: the same scene always frames the same way
+				const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+				const points = [];
+				for (const node of leaves) {
+					const c = node.bounds.center;
+					const h = node.bounds.halfExtents;
+					const n = Math.max(1, Math.round((node.lods[0].count / total) * target));
+					for (let i = 0; i < n; i++) {
+						points.push(
+							c.x + h.x * (2 * random() - 1),
+							c.y + h.y * (2 * random() - 1),
+							c.z + h.z * (2 * random() - 1),
+						);
+					}
+				}
+				return new Float32Array(points);
+			}
+
 			// Scene framing + reveal bounds, derived the same way for every format:
 			// from the splat centres PlayCanvas exposes after the asset loads.
 			// (`resource.centers` is a flat Float32Array of x,y,z per splat, for
-			// plain .ply, .compressed.ply and .sog alike.)
+			// plain .ply, .compressed.ply and .sog alike; a streamed-LOD octree
+			// gets a sample cloud from its leaf bounds instead.)
 			function deriveSceneInfo() {
 				const resource =
 					splatEntity?.gsplat?.instance?.resource ??
 					splatAsset?.resource ??
 					null;
-				const centers = resource?.centers;
+				const octree = octreeOf(resource);
+				const centers = octree ? sampleOctreeCenters(octree) : resource?.centers;
 
 				if (centers && centers.length >= 3) {
 					const count = Math.floor(centers.length / 3);
@@ -976,7 +1017,8 @@ function scheduleFrame(callback) {
 				}
 
 				// Fall back to the axis-aligned bounds when the density fit could
-				// not be computed (degenerate / very small scenes).
+				// not be computed (degenerate / very small scenes). An octree
+				// resource always has these (its root `tree.bound`).
 				if (!sceneFit && resource?.aabb) {
 					const c = resource.aabb.center;
 					const h = resource.aabb.halfExtents;
@@ -1006,7 +1048,13 @@ function scheduleFrame(callback) {
 
 				const format = formatHint || sceneFormatFromUrl(sceneUrl);
 				if (!format) {
-					throw new Error("Unsupported scene URL. Use .ply, .compressed.ply, .sog, .meta.json or .lod-meta.json.");
+					throw new Error("Unsupported scene URL. Use .ply, .compressed.ply, .sog, .meta.json or lod-meta.json.");
+				}
+				if (format === "lod-meta.json" && sceneFormatFromUrl(sceneUrl) !== "lod-meta.json") {
+					console.warn(
+						"[3dgsviewer] format 'lod-meta.json' needs a URL whose file name is exactly lod-meta.json; "
+						+ "PlayCanvas will not stream it otherwise."
+					);
 				}
 
 				setSpinnerVisible(true);
@@ -1019,6 +1067,49 @@ function scheduleFrame(callback) {
 				if (viewerDestroyed || loadController.signal.aborted) return;
 				deriveSceneInfo();
 				setStatus("");
+			}
+
+			// Streamed LOD tuning. `app.scene.gsplat` is global to the scene.
+			// `lodUnderfillLimit = levels - 1` lets the coarsest resident level
+			// render while finer ones stream; with the engine default (0) a node
+			// shows nothing until its optimal - usually the finest - level is in.
+			// The splat budget stays the engine default unless `splatBudget` is set.
+			function configureLodStreaming(octree) {
+				const params = app?.scene?.gsplat;
+				if (!params) return;
+				params.lodUnderfillLimit = Math.max(0, (octree.lodLevels | 0) - 1);
+				const budget = Number(runtimeOptions.splatBudget);
+				if (Number.isFinite(budget) && budget > 0) params.splatBudget = Math.round(budget);
+			}
+
+			// `lodRangeMin` / `lodRangeMax` only work on the component; the
+			// scene-level setters are no-op stubs in PlayCanvas 2.22.
+			function applyLodRange(component) {
+				if (!component) return;
+				for (const key of ["lodRangeMin", "lodRangeMax"]) {
+					const value = runtimeOptions[key];
+					if (Number.isInteger(value) && value >= 0) component[key] = value;
+				}
+			}
+
+			// Retire the scene an octree replaces once the octree has a chunk
+			// unit resident - or after a ceiling, so a stalled stream cannot pin
+			// the old scene forever.
+			function retireWhenResident(octree, entity, asset) {
+				if (!entity && !asset) return;
+				const startedAt = performance.now();
+				const check = () => {
+					if (!app) return;
+					const resident = (octree.fileResources?.size ?? 0) > 0 || octree.destroyed;
+					if (!resident && performance.now() - startedAt < 10000) return;
+					app.off("postrender", check);
+					entity?.destroy();
+					if (asset) {
+						app.assets.remove(asset);
+						asset.unload();
+					}
+				};
+				app.on("postrender", check);
 			}
 
 			async function loadGsplatFromUrl(url, options = {}) {
@@ -1040,6 +1131,7 @@ function scheduleFrame(callback) {
 
 					nextAsset.once("load", () => {
 						const nextEntity = new pc.Entity("Splat");
+						const octree = octreeOf(nextAsset.resource);
 						// `unified: false` is load-bearing, not a preference. Under the
 						// unified renderer PlayCanvas returns null from
 						// `component.material`, so there is no per-instance material for
@@ -1047,9 +1139,22 @@ function scheduleFrame(callback) {
 						// The default flipped to unified in PlayCanvas 2.14+, which is
 						// why this used to work without saying so. `unified` is first in
 						// the component schema, so it is applied before `asset`.
-						nextEntity.addComponent("gsplat", { unified: false, asset: nextAsset });
+						// The one exception is streamed LOD: only the unified renderer
+						// turns an octree resource into something drawable, so a
+						// `lod-meta.json` scene gets `unified: true` and no reveal.
+						if (octree) configureLodStreaming(octree);
+						nextEntity.addComponent("gsplat", { unified: Boolean(octree), asset: nextAsset });
+						if (octree) applyLodRange(nextEntity.gsplat);
 						app.root.addChild(nextEntity);
 
+						if (octree) {
+							// Nothing of an octree is resident when its meta loads, so
+							// keep the previous scene until the first chunk unit is.
+							// There is no per-instance sorter to wait on here.
+							retireWhenResident(octree, previousEntity, previousAsset);
+							previousEntity = null;
+							previousAsset = null;
+						}
 						if (previousEntity) {
 							previousEntity.destroy();
 							previousEntity = null;

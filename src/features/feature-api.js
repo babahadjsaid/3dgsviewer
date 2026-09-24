@@ -81,8 +81,11 @@
 //     Replace the scene with splats built in memory rather than fetched.
 //     `rotationQuat` is [w,x,y,z] applied to the entity.
 // @property {() => object|null} getSplatMaterial   The gsplat entity's
-//     per-instance material (the viewer always uses per-instance rendering), or
-//     null if it is not ready.
+//     per-instance material (the viewer uses per-instance rendering for every
+//     format except streamed LOD), or null if it is not ready or the scene is LOD.
+// @property {() => boolean} isStreamedLod   True when the scene is a streamed
+//     `lod-meta.json` octree: unified renderer, no per-instance material, chunks
+//     arriving after `sceneReady`.
 // @property {() => (null | { center:number[], axes:{right:number[],up:number[],backward:number[]}, halfExtents:number[], distance:number })} getSceneFit
 // @property {() => (null | { minDist:number, maxDist:number })} getOriginDistances
 //
