@@ -126,7 +126,9 @@ export function toSplatData(unpacked) {
 
 /**
  * Subscribe on activation, swap the scene on each snapshot, and unsubscribe
- * on teardown.
+ * on teardown. A snapshot on the `base` layer (a large scene's finished
+ * blocks) replaces the base the viewer keeps; any other replaces the live
+ * layer on top of it.
  *
  * @param {{subscription?: {service: {on: Function}, topic: string}}} options
  */
@@ -148,7 +150,12 @@ export function createLiveSplatStream(options = {}) {
 						const binary = atob(payload);
 						const bytes = new Uint8Array(binary.length);
 						for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-						scene.showSplatData(toSplatData(unpackSnapshot(bytes)), PACK_ROTATION_QUAT);
+						const splatData = toSplatData(unpackSnapshot(bytes));
+						if (event.data.layer === 'base' && typeof scene.showBaseSplatData === 'function') {
+							scene.showBaseSplatData(splatData, PACK_ROTATION_QUAT);
+						} else {
+							scene.showSplatData(splatData, PACK_ROTATION_QUAT);
+						}
 					} catch (error) {
 						console.warn('[live-splat-stream] dropped a snapshot:', error);
 					}

@@ -77,6 +77,11 @@ function scheduleFrame(callback) {
 			let app = null;
 			let splatEntity = null;
 			let splatAsset = null;
+			// The live stream's base layer: splats that no longer change (a
+			// large scene's finished blocks), kept while `splatEntity` -- the
+			// part in training -- is swapped on every snapshot.
+			let baseEntity = null;
+			let baseAsset = null;
 			let snapshotHandoff = null;
 			let activeKeys = [];
 			let jumpDelta = 0;
@@ -94,6 +99,8 @@ function scheduleFrame(callback) {
 				app = null;
 				splatEntity = null;
 				splatAsset = null;
+				baseEntity = null;
+				baseAsset = null;
 				activeKeys = [];
 				jumpDelta = 0;
 				lastFrame = 0;
@@ -474,6 +481,7 @@ function scheduleFrame(callback) {
 
 					getSplatEntity: () => splatEntity,
 					showSplatData,
+					showBaseSplatData,
 					getSplatMaterial: () => splatEntity?.gsplat?.material ?? null,
 					isStreamedLod: () => Boolean(octreeOf(splatAsset?.resource)),
 					// A streamed LOD has nothing drawable until its first chunk
@@ -1046,6 +1054,7 @@ function scheduleFrame(callback) {
 			}
 
 			async function loadSource(sceneUrl, formatHint) {
+				clearBaseSplatData();
 				setSceneFit(null);
 				originDistances = null;
 				updateViewToolbarAvailability();
@@ -1233,6 +1242,47 @@ function scheduleFrame(callback) {
 				snapshotHandoff.replace(nextEntity, previousEntity, previousAsset, splatData.numSplats === 0);
 				splatEntity = nextEntity;
 				splatAsset = nextAsset;
+			}
+
+			function clearBaseSplatData() {
+				baseEntity?.destroy();
+				baseEntity = null;
+				if (baseAsset) {
+					app?.assets.remove(baseAsset);
+					baseAsset.unload();
+					baseAsset = null;
+				}
+			}
+
+			// Replace the base layer. It sits beside the live one, so each live
+			// snapshot needs to carry only what is still changing. Sent rarely
+			// (when a viewer arrives or a block finishes), so the old base goes
+			// as soon as the new one is added.
+			function showBaseSplatData(splatData, rotationQuat) {
+				if (!app) return;
+				const previousEntity = baseEntity;
+				const previousAsset = baseAsset;
+				baseEntity = null;
+				baseAsset = null;
+				if (splatData.numSplats > 0) {
+					const resource = new pc.GSplatResource(app.graphicsDevice, splatData);
+					baseAsset = new pc.Asset("live-base", "gsplat", null);
+					baseAsset.resource = resource;
+					baseAsset.loaded = true;
+					app.assets.add(baseAsset);
+					baseEntity = new pc.Entity("Splat base");
+					baseEntity.addComponent("gsplat", { unified: false, asset: baseAsset });
+					if (rotationQuat) {
+						const [w, x, y, z] = rotationQuat;
+						baseEntity.setLocalRotation(new pc.Quat(x, y, z, w));
+					}
+					app.root.addChild(baseEntity);
+				}
+				previousEntity?.destroy();
+				if (previousAsset) {
+					app.assets.remove(previousAsset);
+					previousAsset.unload();
+				}
 			}
 
 			// ---------------- IMU control ----------------
