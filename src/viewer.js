@@ -17,6 +17,7 @@ let sceneApi = null;
 let mode = resolveMode({});
 let sceneFit = null;          // { center, axes:{right,up,backward}, halfExtents, distance }
 let originDistances = null;   // { minDist, maxDist }
+let stopLodProgress = null;   // tears down the streamed-LOD loading indicator
 
 /**
  * Translate `mode` (or the legacy `fullScreen`) into capability flags.
@@ -1054,6 +1055,8 @@ function scheduleFrame(callback) {
 			}
 
 			async function loadSource(sceneUrl, formatHint) {
+				stopLodProgress?.();
+				stopLodProgress = null;
 				clearBaseSplatData();
 				setSceneFit(null);
 				originDistances = null;
@@ -1095,6 +1098,80 @@ function scheduleFrame(callback) {
 				params.lodUnderfillLimit = Math.max(0, (octree.lodLevels | 0) - 1);
 				const budget = Number(runtimeOptions.splatBudget);
 				if (Number.isFinite(budget) && budget > 0) params.splatBudget = Math.round(budget);
+			}
+
+			// A streamed LOD looks coarse until its finer chunks arrive, and
+			// nothing else says they are on their way. While chunks the current
+			// view asked for are downloading, show a bar across the top with
+			// how many are loaded. Counted from the octree's own loader (in
+			// flight + queued vs. resident), so it restarts whenever the camera
+			// asks for detail the octree does not hold -- LOD also drops chunks
+			// the view no longer needs after `cooldownTicks`, and re-fetches them
+			// (from the browser cache, as their files are immutable).
+			function watchLodProgress(octree) {
+				stopLodProgress?.();
+				stopLodProgress = null;
+				if (!app || runtimeOptions.lodProgress === false) return;
+				const host = viewerRoot instanceof Element ? viewerRoot : document.body;
+				let el = getViewerElement("lod-progress");
+				const created = !el;
+				if (created) {
+					el = document.createElement("div");
+					el.dataset.viewerElement = "lod-progress";
+					el.className = "viewer-lod-progress";
+					el.innerHTML = '<div class="viewer-lod-progress-bar"><span></span></div>'
+						+ '<div class="viewer-lod-progress-label"></div>';
+					host.appendChild(el);
+				}
+				const fill = el.querySelector(".viewer-lod-progress-bar > span");
+				const label = el.querySelector(".viewer-lod-progress-label");
+				el.hidden = true;
+				// Progress is measured in detail levels, not files: the engine
+				// asks for the next finer level only once the coarser one has
+				// landed, so the number of files still to come is never known up
+				// front, while the number of levels is. The bar shows the finest
+				// level resident so far out of the octree's levels.
+				const levels = Math.max(1, octree.lodLevels | 0);
+				let sinceIdle = 0;
+				let lastCheck = 0;
+				const update = () => {
+					const now = performance.now();
+					if (now - lastCheck < 250) return;
+					lastCheck = now;
+					const loader = octree.assetLoader;
+					const pending = (loader?._currentlyLoading?.size ?? 0) + (loader?._loadQueue?.length ?? 0);
+					if (pending > 0) {
+						sinceIdle = 0;
+						let finest = levels;
+						for (const index of octree.fileResources?.keys?.() ?? []) {
+							const level = octree.files?.[index]?.lodLevel;
+							if (Number.isInteger(level)) finest = Math.min(finest, level);
+						}
+						const reached = levels - finest;       // 0 until the coarsest level is in
+						if (fill) fill.style.width = `${Math.round((100 * reached) / levels)}%`;
+						if (label) {
+							label.textContent = reached === 0
+								? "Loading model…"
+								: `Loading detail… level ${reached} of ${levels}`;
+						}
+						el.hidden = false;
+					} else if (!el.hidden) {
+						// Everything asked for has arrived: say so, then hide after a
+						// short grace period (so a quick follow-up does not flicker).
+						if (!sinceIdle) {
+							sinceIdle = now;
+							if (fill) fill.style.width = "100%";
+							if (label) label.textContent = "Full detail loaded";
+						}
+						if (now - sinceIdle > 800) el.hidden = true;
+					}
+				};
+				app.on("update", update);
+				stopLodProgress = () => {
+					app?.off("update", update);
+					if (created) el.remove();
+					else el.hidden = true;
+				};
 			}
 
 			// `lodRangeMin` / `lodRangeMax` only work on the component; the
@@ -1160,6 +1237,7 @@ function scheduleFrame(callback) {
 						if (octree) configureLodStreaming(octree);
 						nextEntity.addComponent("gsplat", { unified: Boolean(octree), asset: nextAsset });
 						if (octree) applyLodRange(nextEntity.gsplat);
+						if (octree) watchLodProgress(octree);
 						app.root.addChild(nextEntity);
 
 						if (octree) {
@@ -1824,6 +1902,8 @@ function scheduleFrame(callback) {
 
 function destroyViewer() {
 	viewerDestroyed = true;
+	stopLodProgress?.();
+	stopLodProgress = null;
 	try {
 		teardownFeatures();
 	} catch (_) { /* features already gone */ }
