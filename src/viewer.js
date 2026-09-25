@@ -476,6 +476,12 @@ function scheduleFrame(callback) {
 					showSplatData,
 					getSplatMaterial: () => splatEntity?.gsplat?.material ?? null,
 					isStreamedLod: () => Boolean(octreeOf(splatAsset?.resource)),
+					// A streamed LOD has nothing drawable until its first chunk
+					// arrives; every other scene is whole once it has loaded.
+					hasResidentSplats: () => {
+						const octree = octreeOf(splatAsset?.resource);
+						return !octree || (octree.fileResources?.size ?? 0) > 0;
+					},
 					getSceneFit: () => sceneFit,
 					getOriginDistances: () => originDistances,
 
@@ -1659,6 +1665,7 @@ function scheduleFrame(callback) {
 					live: mode.live,
 					subscription: mode.live ? runtimeOptions.subscription : undefined,
 					showCameraFrustums: runtimeOptions.showCameraFrustums,
+					cameraFrustumsVisible: runtimeOptions.cameraFrustumsVisible,
 					cameraPoses: runtimeOptions.cameraPoses,
 					revealEffect: runtimeOptions.revealEffect,
 					revealDurationMs: runtimeOptions.revealDurationMs,
