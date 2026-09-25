@@ -18,6 +18,8 @@ let mode = resolveMode({});
 let sceneFit = null;          // { center, axes:{right,up,backward}, halfExtents, distance }
 let originDistances = null;   // { minDist, maxDist }
 let stopLodProgress = null;   // tears down the streamed-LOD loading indicator
+let statsEl = null;           // the stats panel, if this viewer shows one
+let statsCreated = false;     // whether the viewer added it (and so removes it)
 
 /**
  * Translate `mode` (or the legacy `fullScreen`) into capability flags.
@@ -973,6 +975,78 @@ function scheduleFrame(callback) {
 				return resource?.octree ?? null;
 			}
 
+			// ---- stats panel ---------------------------------------------------
+			// What is actually on screen. For a streamed LOD that is not the
+			// model: the engine keeps the drawn splats under
+			// `app.scene.gsplat.splatBudget` (1,000,000 unless set) by choosing
+			// coarser levels per octree node, so the panel shows the splats
+			// drawn, the model's full-detail count, the budget, and which detail
+			// levels are in use.
+			const levelTotals = new WeakMap();   // octree -> splats per level
+
+			function splatsPerLevel(octree) {
+				let totals = levelTotals.get(octree);
+				if (!totals) {
+					totals = new Array(Math.max(1, octree.lodLevels | 0)).fill(0);
+					for (const node of octree.nodes ?? []) {
+						node.lods?.forEach((lod, level) => { totals[level] += lod?.count || 0; });
+					}
+					levelTotals.set(octree, totals);
+				}
+				return totals;
+			}
+
+			function levelsInUse(octree) {
+				const used = new Set();
+				octree.files?.forEach((file, index) => {
+					if ((octree.fileRefCounts?.[index] ?? 0) > 0 && file.lodLevel >= 0) used.add(file.lodLevel);
+				});
+				return [...used].sort((a, b) => a - b);
+			}
+
+			function statsRows() {
+				const resource = splatAsset?.resource;
+				const octree = octreeOf(resource);
+				const number = (n) => Math.round(n).toLocaleString();
+				const rows = [];
+				if (octree) {
+					const totals = splatsPerLevel(octree);
+					const full = totals[0] || 0;
+					const drawn = app?.stats?.frame?.gsplats ?? 0;
+					const setBudget = app?.scene?.gsplat?.splatBudget ?? 0;
+					const budget = setBudget > 0 ? setBudget : 1000000;
+					const used = levelsInUse(octree);
+					const share = (level) => (full ? `${Math.round((100 * totals[level]) / full)}%` : "?");
+					rows.push(["Splats drawn", number(drawn)]);
+					rows.push(["Full detail", number(full)]);
+					rows.push(["Budget", `${number(budget)}${full > budget ? " (limits detail)" : ""}`]);
+					rows.push(["Levels in use", used.length
+						? used.map((level) => `L${level} ${share(level)}`).join(", ")
+						: "loading"]);
+					rows.push(["Levels", totals.map((_, level) => `L${level} ${share(level)}`).join(" · ")]);
+				} else {
+					const drawn = (resource?.numSplats || 0) + (baseAsset?.resource?.numSplats || 0);
+					rows.push(["Splats drawn", number(drawn)]);
+				}
+				rows.push(["FPS", String(Math.round(avgFps))]);
+				return rows;
+			}
+
+			let lastStatsAt = 0;
+			function updateStats(now) {
+				if (!statsEl || now - lastStatsAt < 250) return;
+				lastStatsAt = now;
+				const rows = statsRows();
+				statsEl.replaceChildren(...rows.flatMap(([name, value]) => {
+					const term = document.createElement("dt");
+					term.textContent = name;
+					const detail = document.createElement("dd");
+					detail.textContent = value;
+					return [term, detail];
+				}));
+				statsEl.hidden = false;
+			}
+
 			// An octree carries no splat centres before its chunks stream in -
 			// only each leaf's bounds and its level-0 splat count. Scatter a
 			// sample cloud through the leaves, proportional to those counts, so
@@ -1759,6 +1833,7 @@ function scheduleFrame(callback) {
 				avgFps = avgFps * 0.9 + currentFps * 0.1;
 
 				if (fpsEl) fpsEl.innerText = `${Math.round(avgFps)} fps`;
+				updateStats(now);
 				lastFrame = now;
 				scheduleFrame((t) => frame(t, fpsEl));
 			}
@@ -1829,6 +1904,21 @@ function scheduleFrame(callback) {
 					})();
 
 					const fpsEl = mode.fps ? getViewerElement("fps") : null;
+					// The stats panel: the host's element if it has one (the React
+					// component renders it), else one the viewer adds -- unless
+					// `stats: false`, or the model-only `embedded` mode.
+					statsEl = null;
+					if (runtimeOptions.stats !== false && (mode.chrome || mode.fps)) {
+						statsEl = getViewerElement("stats");
+						statsCreated = !statsEl;
+						if (statsCreated) {
+							statsEl = document.createElement("dl");
+							statsEl.dataset.viewerElement = "stats";
+							statsEl.className = "viewer-stats";
+							(viewerRoot instanceof Element ? viewerRoot : document.body).appendChild(statsEl);
+						}
+						statsEl.hidden = true;
+					}
 
 					app = new pc.Application(canvas, {
 						graphicsDeviceOptions: {
@@ -1904,6 +1994,9 @@ function destroyViewer() {
 	viewerDestroyed = true;
 	stopLodProgress?.();
 	stopLodProgress = null;
+	if (statsCreated) statsEl?.remove();
+	statsEl = null;
+	statsCreated = false;
 	try {
 		teardownFeatures();
 	} catch (_) { /* features already gone */ }

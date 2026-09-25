@@ -104,6 +104,7 @@ Both the component's props and `createViewer(...)` take the same names.
 | `format` | `'ply'` \| `'compressed.ply'` \| `'sog'` \| `'meta.json'` \| `'lod-meta.json'` — for extensionless URLs (`blob:`, custom protocols). |
 | `splatBudget` | Streamed LOD only: global splat budget (`app.scene.gsplat.splatBudget`). Default: the engine's. |
 | `lodRangeMin` / `lodRangeMax` | Streamed LOD only: finest / coarsest level the component may use. |
+| `stats` (React: `showStats`) | A panel of what is on screen: splats drawn, FPS, and for a streamed LOD the full-detail splat count, the splat budget (flagged when it limits detail) and which detail levels are in use. Default `true` (not shown in `embedded` mode). A host may supply its own `<dl data-viewer-element="stats">`. Replaces the former "Controls" help panel. |
 | `lodProgress` | Streamed LOD only: show a bar and "Loading detail… n of m parts" across the top while chunks the current view needs are downloading. Default `true`. A host may place its own element with `data-viewer-element="lod-progress"` (same inner structure) instead of the one the viewer adds. |
 | `cameraFrustumsVisible` | Whether the training-camera pyramids are shown when the scene opens. Default `false`: hidden until the Cameras toggle is clicked. (`showCameraFrustums: false` removes the feature and its toggle altogether.) |
 | `fullScreen` | See above. Default `true`. |
@@ -114,7 +115,7 @@ Both the component's props and `createViewer(...)` take the same names.
 | `cameraPath` / `overlays` / `loadingEffect` | Override one slot; `false` disables it. |
 | `revealEffect`, `revealDurationMs`, `revealEpsilon`, `revealExponentMin`, `revealExponentMax` | Reveal intro tuning. |
 | `imuWebSocketUrl` | Optional WebSocket feeding live IMU camera orientation. |
-| `title`, `showTitle`, `showHelp`, `className`, `style` | Component only, full mode only. |
+| `title`, `showTitle`, `className`, `style` | Component only, full mode only. (`showHelp` is gone: the Controls panel became the stats panel.) |
 
 ## Features
 
