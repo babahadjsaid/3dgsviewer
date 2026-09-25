@@ -131,8 +131,9 @@ export function createCameraFrustums(options = {}) {
 	let off = null;
 	let cameras = [];   // { points, eye, forward, up } per camera, world space
 	let flight = null;  // in-flight camera transition, see flyTo()
-	// Hidden until the viewer's Cameras toggle is clicked: the pyramids are a
-	// diagnostic, not part of the scene. `visible: true` shows them at once.
+	// Hidden until the viewer's Cameras toggle is clicked unless the host
+	// asks otherwise (`cameraFrustumsVisible`): the pyramids are a diagnostic,
+	// not part of the scene.
 	let visible = options.visible ?? false;
 	let root = null;
 	let mesh = null;

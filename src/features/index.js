@@ -33,6 +33,7 @@ import { createCameraFrustums } from './camera-frustums.js';
  *   subscription?: object,
  *   cameraPoses?: {poses: Array, intrs: Array},
  *   showCameraFrustums?: boolean,
+ *   cameraFrustumsVisible?: boolean,
  * }} [options]
  */
 export function defaultFeatures(options = {}) {
@@ -70,6 +71,7 @@ export function defaultFeatures(options = {}) {
 		list.push(createCameraFrustums({
 			subscription: options.subscription,
 			cameraPoses: options.cameraPoses,
+			visible: options.cameraFrustumsVisible,
 		}));
 	}
 

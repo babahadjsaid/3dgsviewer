@@ -32,6 +32,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   style,
   imuWebSocketUrl,
   showCameraFrustums,
+  cameraFrustumsVisible = false,
   cameraPoses,
   revealEffect,
   revealDurationMs,
@@ -79,6 +80,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       subscription,
       imuWebSocketUrl,
       showCameraFrustums,
+      cameraFrustumsVisible,
       cameraPoses,
       revealEffect,
       revealDurationMs,
@@ -106,7 +108,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       if (controllerRef.current === controller) controllerRef.current = null;
     };
   }, [
-    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraPoses,
+    src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraFrustumsVisible, cameraPoses,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
     splatBudget, lodRangeMin, lodRangeMax,
     features, cameraPath, overlays, loadingEffect,
@@ -195,7 +197,7 @@ other
         <button type="button" data-viewer-element="bbox-toggle" title="Show computed bounding box" aria-pressed="false" disabled>
           <span className="view-icon">◇</span>BBox
         </button>
-        <button type="button" data-viewer-element="camera-frustums-toggle" title="No camera poses are available" aria-pressed="false" disabled>
+        <button type="button" data-viewer-element="camera-frustums-toggle" title="No camera poses are available" aria-pressed={String(Boolean(cameraFrustumsVisible))} disabled>
           <span className="view-icon">△</span>Cameras
         </button>
       </nav>
