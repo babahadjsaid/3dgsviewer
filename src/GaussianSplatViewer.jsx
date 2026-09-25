@@ -46,6 +46,8 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   splatBudget,
   lodRangeMin,
   lodRangeMax,
+  // Streamed LOD: show the "loading detail" bar while chunks download (default on).
+  lodProgress,
   features,
   cameraPath,
   overlays,
@@ -91,6 +93,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       splatBudget,
       lodRangeMin,
       lodRangeMax,
+      lodProgress,
       // Feature plug-ins (see src/features/feature-api.js). Pass stable
       // references - like `initialCameraPose`, a new value re-initialises the
       // viewer. `features` fully replaces the default set; the others override
@@ -110,7 +113,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   }, [
     src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraFrustumsVisible, cameraPoses,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
-    splatBudget, lodRangeMin, lodRangeMax,
+    splatBudget, lodRangeMin, lodRangeMax, lodProgress,
     features, cameraPath, overlays, loadingEffect,
   ]);
 

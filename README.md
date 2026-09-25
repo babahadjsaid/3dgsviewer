@@ -104,6 +104,7 @@ Both the component's props and `createViewer(...)` take the same names.
 | `format` | `'ply'` \| `'compressed.ply'` \| `'sog'` \| `'meta.json'` \| `'lod-meta.json'` — for extensionless URLs (`blob:`, custom protocols). |
 | `splatBudget` | Streamed LOD only: global splat budget (`app.scene.gsplat.splatBudget`). Default: the engine's. |
 | `lodRangeMin` / `lodRangeMax` | Streamed LOD only: finest / coarsest level the component may use. |
+| `lodProgress` | Streamed LOD only: show a bar and "Loading detail… n of m parts" across the top while chunks the current view needs are downloading. Default `true`. A host may place its own element with `data-viewer-element="lod-progress"` (same inner structure) instead of the one the viewer adds. |
 | `cameraFrustumsVisible` | Whether the training-camera pyramids are shown when the scene opens. Default `false`: hidden until the Cameras toggle is clicked. (`showCameraFrustums: false` removes the feature and its toggle altogether.) |
 | `fullScreen` | See above. Default `true`. |
 | `initialCameraPose` | Starting camera; skips auto-framing. |
