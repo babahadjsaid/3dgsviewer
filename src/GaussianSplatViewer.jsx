@@ -195,7 +195,7 @@ other
         <button type="button" data-viewer-element="bbox-toggle" title="Show computed bounding box" aria-pressed="false" disabled>
           <span className="view-icon">◇</span>BBox
         </button>
-        <button type="button" data-viewer-element="camera-frustums-toggle" title="No camera poses are available" aria-pressed="true" disabled>
+        <button type="button" data-viewer-element="camera-frustums-toggle" title="No camera poses are available" aria-pressed="false" disabled>
           <span className="view-icon">△</span>Cameras
         </button>
       </nav>
