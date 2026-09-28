@@ -1011,6 +1011,7 @@ function scheduleFrame(callback) {
 				const resource = splatAsset?.resource;
 				const octree = octreeOf(resource);
 				const number = (n) => Math.round(n).toLocaleString();
+				const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
 				const rows = [];
 				if (octree) {
 					const totals = splatsPerLevel(octree);
@@ -1020,20 +1021,22 @@ function scheduleFrame(callback) {
 					const budget = setBudget > 0 ? setBudget : 1000000;
 					const auto = (runtimeOptions.splatBudget ?? "auto") === "auto";
 					const used = levelsInUse(octree);
-					const share = (level) => (full ? `${Math.round((100 * totals[level]) / full)}%` : "?");
 					rows.push(["Splats drawn", number(drawn)]);
 					rows.push(["Full detail", number(full)]);
 					rows.push(["Budget", `${number(budget)}${auto ? " (auto)" : ""}`
 						+ `${budget < fullDetailBudget(octree) ? " (limits detail)" : ""}`]);
-					rows.push(["Levels in use", used.length
-						? used.map((level) => `L${level} ${share(level)}`).join(", ")
-						: "loading"]);
-					rows.push(["Levels", totals.map((_, level) => `L${level} ${share(level)}`).join(" · ")]);
+					// Which levels have chunks in use, not how much of each is drawn:
+					// the engine mixes levels per octree node.
+					rows.push(["Levels in use", used.length ? used.map((level) => `L${level}`).join(", ") : "loading"]);
+					rows.push(["Level sizes", totals.map((count, level) => `L${level} ${compact(count)}`).join(" · ")]);
 				} else {
 					const drawn = (resource?.numSplats || 0) + (baseAsset?.resource?.numSplats || 0);
 					rows.push(["Splats drawn", number(drawn)]);
 				}
-				rows.push(["FPS", String(Math.round(avgFps))]);
+				// The fps readout, where the viewer has one, already shows this.
+				if (!getViewerElement("fps")) {
+					rows.push(["FPS", Number.isFinite(avgFps) ? String(Math.round(avgFps)) : "—"]);
+				}
 				return rows;
 			}
 
@@ -1291,7 +1294,9 @@ function scheduleFrame(callback) {
 						if (!sinceIdle) {
 							sinceIdle = now;
 							if (fill) fill.style.width = "100%";
-							if (label) label.textContent = "Full detail loaded";
+							const budget = app?.scene?.gsplat?.splatBudget ?? 0;
+							const limited = (budget > 0 ? budget : 1000000) < fullDetailBudget(octree);
+							if (label) label.textContent = limited ? "Loaded (detail limited by budget)" : "Full detail loaded";
 						}
 						if (now - sinceIdle > 800) el.hidden = true;
 					}
@@ -1971,7 +1976,10 @@ function scheduleFrame(callback) {
 							statsEl = document.createElement("dl");
 							statsEl.dataset.viewerElement = "stats";
 							statsEl.className = "viewer-stats";
-							(viewerRoot instanceof Element ? viewerRoot : document.body).appendChild(statsEl);
+							// Under the host's title when it has an info area; on its own
+							// top-left otherwise (see styles.css).
+							const info = getViewerElement("info");
+							(info ?? (viewerRoot instanceof Element ? viewerRoot : document.body)).appendChild(statsEl);
 						}
 						statsEl.hidden = true;
 					}

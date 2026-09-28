@@ -144,7 +144,8 @@
 				grid-template-columns: auto auto;
 				column-gap: 12px;
 				row-gap: 2px;
-				max-width: 360px;
+				max-width: min(360px, calc(100vw - 30px));
+				box-sizing: border-box;
 				border-radius: 6px;
 				background: rgba(0, 0, 0, 0.55);
 				color: #fff;
@@ -176,9 +177,7 @@
 
 			.viewer-lod-progress {
 				position: absolute;
-				top: 0;
-				left: 0;
-				right: 0;
+				inset: 0;
 				z-index: 100;
 				pointer-events: none;
 			}
@@ -280,4 +279,7 @@
 			@media (max-width: 560px) {
 				.view-toolbar { gap: 2px; padding: 4px; }
 				.view-toolbar button { min-width: 32px; padding: 2px 3px; }
+				/* Clear of the title (top-left) and of the toolbar (bottom). */
+				.viewer-lod-progress-label { top: auto; bottom: 72px; }
+				.viewer-quality { bottom: 72px; }
 			}
