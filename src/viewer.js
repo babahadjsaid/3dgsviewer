@@ -21,6 +21,9 @@ let stopLodProgress = null;   // tears down the streamed-LOD loading indicator
 let statsEl = null;           // the stats panel, if this viewer shows one
 let statsCreated = false;     // whether the viewer added it (and so removes it)
 
+// Streamed LOD: chunk files fetched at once (the engine's own default is 2).
+const LOD_MAX_CONCURRENT_LOADS = 6;
+
 /**
  * Translate `mode` (or the legacy `fullScreen`) into capability flags.
  *
@@ -978,10 +981,10 @@ function scheduleFrame(callback) {
 			// ---- stats panel ---------------------------------------------------
 			// What is actually on screen. For a streamed LOD that is not the
 			// model: the engine keeps the drawn splats under
-			// `app.scene.gsplat.splatBudget` (1,000,000 unless set) by choosing
-			// coarser levels per octree node, so the panel shows the splats
-			// drawn, the model's full-detail count, the budget, and which detail
-			// levels are in use.
+			// `app.scene.gsplat.splatBudget` (see `resolveSplatBudget`) by
+			// choosing coarser levels per octree node, so the panel shows the
+			// splats drawn, the model's full-detail count, the budget, and which
+			// detail levels are in use.
 			const levelTotals = new WeakMap();   // octree -> splats per level
 
 			function splatsPerLevel(octree) {
@@ -1015,11 +1018,13 @@ function scheduleFrame(callback) {
 					const drawn = app?.stats?.frame?.gsplats ?? 0;
 					const setBudget = app?.scene?.gsplat?.splatBudget ?? 0;
 					const budget = setBudget > 0 ? setBudget : 1000000;
+					const auto = (runtimeOptions.splatBudget ?? "auto") === "auto";
 					const used = levelsInUse(octree);
 					const share = (level) => (full ? `${Math.round((100 * totals[level]) / full)}%` : "?");
 					rows.push(["Splats drawn", number(drawn)]);
 					rows.push(["Full detail", number(full)]);
-					rows.push(["Budget", `${number(budget)}${full > budget ? " (limits detail)" : ""}`]);
+					rows.push(["Budget", `${number(budget)}${auto ? " (auto)" : ""}`
+						+ `${budget < fullDetailBudget(octree) ? " (limits detail)" : ""}`]);
 					rows.push(["Levels in use", used.length
 						? used.map((level) => `L${level} ${share(level)}`).join(", ")
 						: "loading"]);
@@ -1165,13 +1170,64 @@ function scheduleFrame(callback) {
 			// `lodUnderfillLimit = levels - 1` lets the coarsest resident level
 			// render while finer ones stream; with the engine default (0) a node
 			// shows nothing until its optimal - usually the finest - level is in.
-			// The splat budget stays the engine default unless `splatBudget` is set.
+			// The splat budget is `splatBudget` (see `resolveSplatBudget`), and
+			// the octree's loader fetches `lodMaxConcurrentLoads` chunk files at
+			// a time instead of the engine's 2: on a 2.35 M-splat city, 6 reached
+			// full detail sooner both locally and at 50 Mbit/s.
 			function configureLodStreaming(octree) {
 				const params = app?.scene?.gsplat;
 				if (!params) return;
 				params.lodUnderfillLimit = Math.max(0, (octree.lodLevels | 0) - 1);
-				const budget = Number(runtimeOptions.splatBudget);
-				if (Number.isFinite(budget) && budget > 0) params.splatBudget = Math.round(budget);
+				const budget = resolveSplatBudget(octree);
+				if (budget > 0) params.splatBudget = budget;
+				const loads = Number(runtimeOptions.lodMaxConcurrentLoads ?? LOD_MAX_CONCURRENT_LOADS);
+				if (octree.assetLoader && Number.isInteger(loads) && loads > 0) {
+					octree.assetLoader.maxConcurrentLoads = loads;
+				}
+			}
+
+			// `splatBudget`: a number sets the budget outright; `0` keeps the
+			// engine's (1,000,000); `"auto"` (the default) asks for the model's
+			// full detail - every octree node at level 0 - capped per device by
+			// `autoSplatBudgetCap`. Under a budget below the full count the
+			// engine draws the far part of the scene at level 1 or 2 (a half or
+			// a quarter of the splats): that is the "poor quality" of a large
+			// model at the default 1 M.
+			// Full detail needs headroom over the level-0 count: before it
+			// balances levels the engine subtracts up to one work-buffer row
+			// (about `sqrt(1.15 x budget)` splats) of padding per resident chunk
+			// file, so a budget of exactly the full count leaves some nodes a
+			// level coarser.
+			function resolveSplatBudget(octree) {
+				const option = runtimeOptions.splatBudget ?? "auto";
+				if (option !== "auto") {
+					const budget = Number(option);
+					return Number.isFinite(budget) && budget > 0 ? Math.round(budget) : 0;
+				}
+				const full = fullDetailBudget(octree);
+				return full > 0 ? Math.min(full, autoSplatBudgetCap()) : 0;
+			}
+
+			// The level-0 splat count plus that padding headroom.
+			function fullDetailBudget(octree) {
+				const full = splatsPerLevel(octree)[0] || 0;
+				if (!full) return 0;
+				return full + ((octree.files?.length ?? 0) + 1) * Math.ceil(Math.sqrt(1.2 * full));
+			}
+
+			// The most splats `splatBudget: "auto"` asks for on this device. On
+			// a laptop RTX 3060 all 2.35 M splats of the test city drew as fast
+			// as 1 M, for ~160 MB of textures against ~120 MB, so a desktop gets
+			// 4 M. Touch-only devices and small-memory ones were not measured
+			// and keep the engine's 1 M, or 2 M at 4 GB.
+			// `navigator.deviceMemory` is Chromium-only and reports at most 8.
+			function autoSplatBudgetCap() {
+				const memory = Number(globalThis.navigator?.deviceMemory) || 0;
+				const touchOnly = Boolean(globalThis.matchMedia?.("(pointer: coarse)").matches)
+					&& !globalThis.matchMedia?.("(any-pointer: fine)").matches;
+				if (touchOnly || (memory > 0 && memory <= 2)) return 1000000;
+				if (memory > 0 && memory <= 4) return 2000000;
+				return 4000000;
 			}
 
 			// A streamed LOD looks coarse until its finer chunks arrive, and

@@ -28,9 +28,10 @@ The one exception is streamed LOD. PlayCanvas renders an octree
 (`lod-meta.json`) only under the unified renderer, so those scenes get
 `unified: true`, skip the reveal intro, and stream their chunk units after the
 scene is ready. The viewer sets `app.scene.gsplat.lodUnderfillLimit` to
-`levels - 1`, so the coarsest resident level shows while finer ones load. The
-URL's file name must be exactly `lod-meta.json`; chunk URLs resolve next to it,
-and its query string is not carried over to them.
+`levels - 1`, so the coarsest resident level shows while finer ones load, and
+by default sizes the splat budget to the model's full detail (see
+`splatBudget`). The URL's file name must be exactly `lod-meta.json`; chunk URLs
+resolve next to it, and its query string is not carried over to them.
 
 ## Use
 
@@ -102,7 +103,8 @@ Both the component's props and `createViewer(...)` take the same names.
 |---|---|
 | `src` | Scene URL. Required. |
 | `format` | `'ply'` \| `'compressed.ply'` \| `'sog'` \| `'meta.json'` \| `'lod-meta.json'` — for extensionless URLs (`blob:`, custom protocols). |
-| `splatBudget` | Streamed LOD only: global splat budget (`app.scene.gsplat.splatBudget`). Default: the engine's. |
+| `splatBudget` | Streamed LOD only: global splat budget (`app.scene.gsplat.splatBudget`). Default `'auto'`: the model's full detail (its level-0 splat count plus the engine's per-chunk padding), capped at 4,000,000 on desktops, 2,000,000 at 4 GB `navigator.deviceMemory` and 1,000,000 on touch-only or ≤ 2 GB devices. A number sets it; `0` keeps the engine's 1,000,000, which draws a large model's far part at half or a quarter of its splats. |
+| `lodMaxConcurrentLoads` | Streamed LOD only: chunk files downloaded at once. Default `6` (the engine's is 2). |
 | `lodRangeMin` / `lodRangeMax` | Streamed LOD only: finest / coarsest level the component may use. |
 | `stats` (React: `showStats`) | A panel of what is on screen: splats drawn, FPS, and for a streamed LOD the full-detail splat count, the splat budget (flagged when it limits detail) and which detail levels are in use. Default `true` (not shown in `embedded` mode). A host may supply its own `<dl data-viewer-element="stats">`. Replaces the former "Controls" help panel. |
 | `lodProgress` | Streamed LOD only: show a bar and "Loading detail… n of m parts" across the top while chunks the current view needs are downloading. Default `true`. A host may place its own element with `data-viewer-element="lod-progress"` (same inner structure) instead of the one the viewer adds. |
