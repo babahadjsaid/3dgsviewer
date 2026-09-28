@@ -26,7 +26,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   mode,
   subscription,
   title = '3D Gaussian Splat Viewer',
-  showHelp = true,
+  showStats = true,
   showTitle = true,
   className = '',
   style,
@@ -40,10 +40,14 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   revealPointSize,
   revealExponentMin,
   revealExponentMax,
-  // Streamed LOD tuning (ignored for other formats). `splatBudget` overrides
-  // the engine's global splat budget; `lodRangeMin` / `lodRangeMax` clamp the
-  // finest / coarsest level the component may use.
+  // Streamed LOD tuning (ignored for other formats). `splatBudget` is the
+  // global splat budget: 'auto' (default) = the model's full detail, capped
+  // per device; a number sets it; 0 keeps the engine's 1 M.
+  // `lodMaxConcurrentLoads`: chunk files fetched at once (default 6).
+  // `lodRangeMin` / `lodRangeMax` clamp the finest / coarsest level the
+  // component may use.
   splatBudget,
+  lodMaxConcurrentLoads,
   lodRangeMin,
   lodRangeMax,
   // Streamed LOD: show the "loading detail" bar while chunks download (default on).
@@ -91,9 +95,11 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
       revealExponentMin,
       revealExponentMax,
       splatBudget,
+      lodMaxConcurrentLoads,
       lodRangeMin,
       lodRangeMax,
       lodProgress,
+      stats: showStats,
       // Feature plug-ins (see src/features/feature-api.js). Pass stable
       // references - like `initialCameraPose`, a new value re-initialises the
       // viewer. `features` fully replaces the default set; the others override
@@ -113,7 +119,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
   }, [
     src, format, initialCameraPose, imuWebSocketUrl, fullScreen, mode, subscription, showCameraFrustums, cameraFrustumsVisible, cameraPoses,
     revealEffect, revealDurationMs, revealEpsilon, revealPointSize, revealExponentMin, revealExponentMax,
-    splatBudget, lodRangeMin, lodRangeMax, lodProgress,
+    splatBudget, lodMaxConcurrentLoads, lodRangeMin, lodRangeMax, lodProgress, showStats,
     features, cameraPath, overlays, loadingEffect,
   ]);
 
@@ -149,27 +155,7 @@ const GaussianSplatViewer = forwardRef(function GaussianSplatViewer({
     >
       <section className="viewer-info" data-viewer-element="info">
         {showTitle && <h3>{title}</h3>}
-        {showHelp && (
-          <details>
-            <summary>Controls</summary>
-            <div className="viewer-instructions" data-viewer-element="instructions">{`mouse
-- left-drag: rotate
-- middle-drag or wheel: zoom
-- right-drag: pan
-
-keyboard
-- arrows: move
-- WASD/QE: rotate
-- P: start or stop the fitted orbit
-
-other
-- use the bottom toolbar for fitted side views
-- Axes toggles the global origin frame
-- BBox toggles the computed bounding box
-- Cameras toggles camera pyramids when poses are available
-- drop a supported Gaussian scene onto the viewer`}</div>
-          </details>
-        )}
+        {showStats && <dl className="viewer-stats" data-viewer-element="stats" hidden />}
       </section>
 
       <div className="viewer-progress" data-viewer-element="progress" />
